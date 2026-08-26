@@ -1,346 +1,359 @@
-<!--
-
-Chess Html
-
-Copyright (C) 2025 - Fatih (https://github.com/99fk)
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
--->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta charset="UTF-8" />
-  <title>Chess</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #222;
-      color: #fff;
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      height: 100vh;
-      overflow: hidden;
-    }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="Play Chess 2-Player Pass & Play mode with local multiplayer, custom piece styles, and tactile sound effects.">
+  <meta name="theme-color" content="#0f141c">
+  <title>Chess HTML | 2-Player Pass & Play</title>
 
-    h1 { margin: 10px; }
+  <!-- Google Fonts: Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 
-    #chessboard {
-      width: 95vmin;
-      height: 95vmin;
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      grid-template-rows: repeat(8, 1fr);
-      border: 4px solid #fff;
-      aspect-ratio: 1;
-    }
-
-    .square {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 4.5vmin;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .white { background: #eee; color: #000; }
-    .black { background: #444; color: #fff; }
-    .highlight { outline: 3px solid yellow; }
-
-    .white-piece {
-      background-color: #fff;
-      color: #000;
-      border-radius: 50%;
-      padding: 2px 6px;
-      box-shadow: 0 0 2px #000;
-    }
-
-    .black-piece {
-      background-color: #000;
-      color: #fff;
-      border-radius: 50%;
-      padding: 2px 6px;
-      box-shadow: 0 0 2px #fff;
-    }
-
-    #volumeSlider {
-      width: 100px;
-    }
-
-    #status {
-      margin-top: 10px;
-      text-align: center;
-      font-size: 1rem;
-    }
-
-    .volume-control {
-	  position: absolute;
-      z-index: 1000;
-      left:0px;
-    }
-    .row {
-     display: flex;
-     justify-content: space-between;
-     align-items: center;
-     width: 100%; /* oder eine feste Breite */
-     padding: 0 10px;
-    }
-  </style>
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-  <div id="chessboard"></div>
-<div class="row">
-  <div>
-  <div id="volume-control">
-    🔊 Volume: <input type="range" min="0" max="1" step="0.05" value="0.5" id="volumeSlider">
+<body data-board-theme="green">
+
+  <!-- =========================================================================
+       APP HEADER
+       ========================================================================= -->
+  <header class="app-header">
+    <div class="brand-section">
+      <span class="brand-icon">⚔️</span>
+      <h1 class="app-title">Chess HTML</h1>
+      <span id="mode-badge" class="mode-badge pvp">PASS & PLAY</span>
+    </div>
+
+    <div class="header-actions">
+      <a href="index.html" class="btn-icon" title="Switch to AI Mode" aria-label="Switch to AI Mode" style="text-decoration: none;">
+        🤖
+      </a>
+      <button id="btn-header-theme" class="btn-icon" title="Change Board Theme" aria-label="Change Board Theme">
+        🎨
+      </button>
+      <button id="btn-header-mute" class="btn-icon active" title="Toggle Sound" aria-label="Toggle Sound">
+        🔊
+      </button>
+      <button id="btn-header-flip" class="btn-icon" title="Flip Board (F)" aria-label="Flip Board">
+        ⇅
+      </button>
+      <button id="btn-header-newgame" class="btn-icon" title="New Game (R)" aria-label="New Game">
+        ↻
+      </button>
+      <button id="btn-header-settings" class="btn-icon" title="Settings (S)" aria-label="Settings">
+        ⚙️
+      </button>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       MAIN CONTAINER (Mobile 100vw & Desktop 2-Column)
+       ========================================================================= -->
+  <main class="main-container">
+
+    <!-- LEFT / MAIN: Board & Player Bars -->
+    <section class="board-column">
+      
+      <!-- Top / Opponent Player Bar -->
+      <div id="top-player-bar" class="player-bar">
+        <div class="player-info">
+          <div id="top-player-avatar" class="player-avatar avatar-black">
+            ♚<span class="turn-glow-dot"></span>
+          </div>
+          <div class="player-meta">
+            <span id="top-player-name" class="player-name">Player 2 (Black)</span>
+            <span id="top-player-status" class="player-status-badge">Waiting</span>
+          </div>
+        </div>
+
+        <div class="player-material-tray">
+          <div id="top-captured-list" class="captured-pieces-list"></div>
+          <span id="top-material-diff" class="material-diff-badge"></span>
+        </div>
+      </div>
+
+      <!-- Chessboard Grid -->
+      <div id="chessboard-wrapper" class="chessboard-wrapper">
+        <div id="chessboard"></div>
+      </div>
+
+      <!-- Bottom / User Player Bar -->
+      <div id="bottom-player-bar" class="player-bar active-turn">
+        <div class="player-info">
+          <div id="bottom-player-avatar" class="player-avatar avatar-white">
+            ♔<span class="turn-glow-dot"></span>
+          </div>
+          <div class="player-meta">
+            <span id="bottom-player-name" class="player-name">Player 1 (White)</span>
+            <span id="bottom-player-status" class="player-status-badge">Active Turn</span>
+          </div>
+        </div>
+
+        <div class="player-material-tray">
+          <div id="bottom-captured-list" class="captured-pieces-list"></div>
+          <span id="bottom-material-diff" class="material-diff-badge"></span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT / DESKTOP SIDEBAR PANEL -->
+    <aside class="sidebar-panel">
+      
+      <!-- Evaluation Bar -->
+      <div class="eval-bar-wrapper">
+        <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary);">EVAL</span>
+        <div class="eval-meter">
+          <div id="eval-fill-white" class="eval-fill-white"></div>
+        </div>
+        <span id="eval-score-text" class="eval-score-text">0.0</span>
+      </div>
+
+      <!-- Move History Box -->
+      <div class="move-history-card">
+        <div class="move-history-header">
+          <span>Move History</span>
+          <span style="font-size: 0.7rem; opacity: 0.8;">SAN</span>
+        </div>
+        <div id="move-history-list" class="move-history-list"></div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="sidebar-actions-grid">
+        <button id="btn-sidebar-newgame" class="btn-sidebar btn-primary">
+          <span>↻</span> New Game
+        </button>
+        <button id="btn-sidebar-undo" class="btn-sidebar">
+          <span>↶</span> Undo Move
+        </button>
+        <button id="btn-sidebar-flip" class="btn-sidebar">
+          <span>⇅</span> Flip Board
+        </button>
+        <button id="btn-sidebar-settings" class="btn-sidebar">
+          <span>⚙️</span> Settings
+        </button>
+        <button id="btn-sidebar-draw" class="btn-sidebar">
+          <span>🤝</span> Claim Draw
+        </button>
+        <button id="btn-sidebar-resign" class="btn-sidebar">
+          <span>🏳️</span> Resign
+        </button>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- =========================================================================
+       MOBILE BOTTOM DOCK
+       ========================================================================= -->
+  <nav class="mobile-bottom-dock">
+    <button id="btn-dock-undo" class="dock-btn">
+      <span class="btn-icon-svg">↶</span>
+      <span class="btn-label">Undo</span>
+    </button>
+    <button id="btn-dock-newgame" class="dock-btn">
+      <span class="btn-icon-svg">↻</span>
+      <span class="btn-label">New</span>
+    </button>
+    <button id="btn-dock-flip" class="dock-btn">
+      <span class="btn-icon-svg">⇅</span>
+      <span class="btn-label">Flip</span>
+    </button>
+    <button id="btn-dock-settings" class="dock-btn">
+      <span class="btn-icon-svg">⚙️</span>
+      <span class="btn-label">Settings</span>
+    </button>
+    <a href="index.html" class="dock-btn" style="text-decoration: none;">
+      <span class="btn-icon-svg">🤖</span>
+      <span class="btn-label">AI Mode</span>
+    </a>
+  </nav>
+
+  <!-- =========================================================================
+       MODALS & DRAWERS
+       ========================================================================= -->
+
+  <!-- 1. Settings Modal -->
+  <div id="modal-settings" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">⚙️ Game Settings</h2>
+        <button class="btn-icon" data-close-modal aria-label="Close Settings">✕</button>
+      </div>
+
+      <div class="modal-body">
+        
+        <!-- Game Mode -->
+        <div class="settings-section">
+          <label class="section-label" for="setting-game-mode">Game Mode</label>
+          <select id="setting-game-mode" class="custom-select">
+            <option value="pvp" selected>2-Player Pass & Play</option>
+            <option value="ai">Play vs Stockfish AI</option>
+          </select>
+        </div>
+
+        <!-- Board Theme Swatches -->
+        <div class="settings-section">
+          <span class="section-label">Board Theme</span>
+          <div class="theme-swatches-grid">
+            
+            <div class="theme-swatch-card active" data-theme="green">
+              <div class="theme-preview-box">
+                <div style="background: #eeeed2;"></div>
+                <div style="background: #769656;"></div>
+                <div style="background: #769656;"></div>
+                <div style="background: #eeeed2;"></div>
+              </div>
+              <span class="swatch-name">Green</span>
+            </div>
+
+            <div class="theme-swatch-card" data-theme="wood">
+              <div class="theme-preview-box">
+                <div style="background: #e3c496;"></div>
+                <div style="background: #a67243;"></div>
+                <div style="background: #a67243;"></div>
+                <div style="background: #e3c496;"></div>
+              </div>
+              <span class="swatch-name">Wood</span>
+            </div>
+
+            <div class="theme-swatch-card" data-theme="dark">
+              <div class="theme-preview-box">
+                <div style="background: #505664;"></div>
+                <div style="background: #2e333d;"></div>
+                <div style="background: #2e333d;"></div>
+                <div style="background: #505664;"></div>
+              </div>
+              <span class="swatch-name">Dark</span>
+            </div>
+
+            <div class="theme-swatch-card" data-theme="blue">
+              <div class="theme-preview-box">
+                <div style="background: #dee3e6;"></div>
+                <div style="background: #8ca2ad;"></div>
+                <div style="background: #8ca2ad;"></div>
+                <div style="background: #dee3e6;"></div>
+              </div>
+              <span class="swatch-name">Blue</span>
+            </div>
+
+            <div class="theme-swatch-card" data-theme="cyber">
+              <div class="theme-preview-box">
+                <div style="background: #1e293b;"></div>
+                <div style="background: #090d16;"></div>
+                <div style="background: #090d16;"></div>
+                <div style="background: #1e293b;"></div>
+              </div>
+              <span class="swatch-name">Cyber</span>
+            </div>
+
+            <div class="theme-swatch-card" data-theme="coral">
+              <div class="theme-preview-box">
+                <div style="background: #f0d9b5;"></div>
+                <div style="background: #b58863;"></div>
+                <div style="background: #b58863;"></div>
+                <div style="background: #f0d9b5;"></div>
+              </div>
+              <span class="swatch-name">Coral</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Piece Style Cards -->
+        <div class="settings-section">
+          <span class="section-label">Piece Set Style</span>
+          <div class="piece-styles-grid">
+            <div class="piece-style-card active" data-style="standard">
+              <span style="font-size: 1.5rem;">♞</span>
+              <span class="piece-style-name">Standard</span>
+            </div>
+            <div class="piece-style-card" data-style="modern">
+              <span style="font-size: 1.5rem;">♚</span>
+              <span class="piece-style-name">Modern</span>
+            </div>
+            <div class="piece-style-card" data-style="wood">
+              <span style="font-size: 1.5rem;">♜</span>
+              <span class="piece-style-name">Wood</span>
+            </div>
+            <div class="piece-style-card" data-style="neon">
+              <span style="font-size: 1.5rem; filter: drop-shadow(0 0 3px #00f0ff);">♛</span>
+              <span class="piece-style-name">Neon</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sound Engine & Volume -->
+        <div class="settings-section">
+          <div class="section-label">
+            <span>Sound Theme & FX</span>
+            <button id="btn-test-sound" class="btn-test-sound">🔊 Test Sound</button>
+          </div>
+          <div class="sound-controls-row">
+            <select id="setting-sound-theme" class="custom-select">
+              <option value="wood">Tactile Wood</option>
+              <option value="modern">Acoustic Modern</option>
+              <option value="arcade">Retro 8-Bit Arcade</option>
+              <option value="synth">Futuristic Sci-Fi Synth</option>
+            </select>
+          </div>
+
+          <div style="margin-top: 10px;">
+            <span class="section-label">Master Volume</span>
+            <div class="range-slider-wrapper">
+              <span>🔈</span>
+              <input type="range" id="setting-volume-slider" class="range-slider" min="0" max="1" step="0.05" value="0.5">
+              <span>🔊</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-primary-action" data-close-modal>Done</button>
+      </div>
+    </div>
   </div>
+
+  <!-- 2. Pawn Promotion Modal -->
+  <div id="modal-promotion" class="modal-backdrop">
+    <div class="modal-card promotion-modal-card">
+      <h3 class="promotion-title">Promote Pawn</h3>
+      <div id="promotion-pieces-container" class="promotion-pieces-grid"></div>
+    </div>
   </div>
-  <div>
-  <p id="status"> </p>
+
+  <!-- 3. Game Over Modal -->
+  <div id="modal-gameover" class="modal-backdrop">
+    <div class="modal-card gameover-modal-card">
+      <div id="gameover-icon" class="gameover-icon">👑</div>
+      <h2 id="gameover-title" class="gameover-result">White Wins!</h2>
+      <p id="gameover-reason" class="gameover-reason">Checkmate delivered.</p>
+
+      <div class="gameover-buttons">
+        <button id="btn-gameover-rematch" class="btn-primary-action">Play Rematch</button>
+        <button id="btn-gameover-copy-fen" class="btn-secondary-action">Copy FEN String</button>
+        <button class="btn-secondary-action" data-close-modal>Review Board</button>
+      </div>
+    </div>
   </div>
-  <div>
 
-  </div>
-</div>
-  
-  <script>
+  <!-- 4. Floating Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
 
-    const pieces = {
-      r: "♜", n: "♞", b: "♝", q: "♛", k: "♚", p: "♟",
-      R: "♖", N: "♘", B: "♗", Q: "♕", K: "♔", P: "♙"
-    };
-	let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let volume = 0.5;
-    let board = [
-      "rnbqkbnr".split(""), "pppppppp".split(""),
-      " ".repeat(8).split(""), " ".repeat(8).split(""),
-      " ".repeat(8).split(""), " ".repeat(8).split(""),
-      "PPPPPPPP".split(""), "RNBQKBNR".split("")
-    ];
+  <!-- =========================================================================
+       JAVASCRIPT MODULES & CORE SCRIPTS
+       ========================================================================= -->
+  <script src="js/pieces.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/chess-core.js"></script>
+  <script src="js/stockfish-bridge.js"></script>
+  <script src="js/app.js"></script>
 
-    let moved = {}; // merkt sich, ob König oder Turm bewegt wurden
-    const chessboard = document.getElementById("chessboard");
-    const status = document.getElementById("status");
-    let selected = null;
-    let whiteTurn = true;
-
-    function renderBoard() {
-      chessboard.innerHTML = "";
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          const square = document.createElement("div");
-          square.className = "square " + ((x + y) % 2 === 0 ? "white" : "black");
-          square.dataset.x = x;
-          square.dataset.y = y;
-          const piece = board[y][x];
-          if (piece !== " ") {
-            const span = document.createElement("span");
-            span.textContent = pieces[piece];
-            span.className = (piece === piece.toUpperCase()) ? "white-piece" : "black-piece";
-            square.appendChild(span);
-          }
-          if (selected && selected.x == x && selected.y == y) square.classList.add("highlight");
-          square.onclick = () => handleClick(x, y);
-          chessboard.appendChild(square);
-        }
-      }
-      const inCheck = isCheck(whiteTurn);
-      const moves = allLegalMoves(whiteTurn);
-      if (inCheck && moves.length === 0) {
-        status.textContent = (whiteTurn ? "White" : "Black") + " is checkmated!";
-      } else if (!inCheck && moves.length === 0) {
-        status.textContent = "Patt!";
-      } else if (inCheck) {
-        status.textContent = (whiteTurn ? "White" : "Black") + "  is in check!";
-      } else {
-        status.textContent = (whiteTurn ? "White" : "Black") + " to move.";
-      }
-    }
-
-    function isWhite(p) { return p === p.toUpperCase(); }
-
-    function isLegalMove(fromX, fromY, toX, toY) {
-      const p = board[fromY][fromX];
-      const target = board[toY][toX];
-      const dx = toX - fromX, dy = toY - fromY;
-      const absDx = Math.abs(dx), absDy = Math.abs(dy);
-      if (!p || (target !== " " && isWhite(p) === isWhite(target))) return false;
-      const dir = isWhite(p) ? -1 : 1;
-      const startRow = isWhite(p) ? 6 : 1;
-
-      switch (p.toLowerCase()) {
-        case "p":
-          if (dx === 0 && target === " ") {
-            if (dy === dir) return true;
-            if (fromY === startRow && dy === 2 * dir && board[fromY + dir][fromX] === " ") return true;
-          }
-          if (absDx === 1 && dy === dir && target !== " " && isWhite(p) !== isWhite(target)) return true;
-          return false;
-        case "r":
-          if (dx && dy) return false;
-          return pathClear(fromX, fromY, toX, toY);
-        case "n":
-          return (absDx === 2 && absDy === 1) || (absDx === 1 && absDy === 2);
-        case "b":
-          if (absDx !== absDy) return false;
-          return pathClear(fromX, fromY, toX, toY);
-        case "q":
-          if (dx === 0 || dy === 0 || absDx === absDy) return pathClear(fromX, fromY, toX, toY);
-          return false;
-        case "k":
-          if (absDx <= 1 && absDy <= 1) return true;
-          // Rochade
-          if (dy === 0 && (dx === 2 || dx === -2)) {
-            const row = fromY;
-            const side = dx === 2 ? "king" : "queen";
-            return canCastle(row, side);
-          }
-          return false;
-      }
-      return false;
-    }
-
-    function canCastle(row, side) {
-      const color = row === 7 ? "w" : "b";
-      if (moved[color + "k"]) return false;
-      const y = row;
-      if (side === "king") {
-        if (moved[color + "rh"]) return false;
-        if (board[y][5] !== " " || board[y][6] !== " ") return false;
-      } else {
-        if (moved[color + "ra"]) return false;
-        if (board[y][1] !== " " || board[y][2] !== " " || board[y][3] !== " ") return false;
-      }
-      return true;
-    }
-
-    function pathClear(fromX, fromY, toX, toY) {
-      const dx = Math.sign(toX - fromX), dy = Math.sign(toY - fromY);
-      let x = fromX + dx, y = fromY + dy;
-      while (x !== toX || y !== toY) {
-        if (board[y][x] !== " ") return false;
-        x += dx; y += dy;
-      }
-      return true;
-    }
-
-    function isCheck(white) {
-      const k = white ? "K" : "k";
-      let kingX = -1, kingY = -1;
-      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++)
-        if (board[y][x] === k) { kingX = x; kingY = y; }
-      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-        const p = board[y][x];
-        if (p !== " " && isWhite(p) !== white && isLegalMove(x, y, kingX, kingY)) return true;
-      }
-      return false;
-    }
-
-    function allLegalMoves(forWhite) {
-      const moves = [];
-      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-        const p = board[y][x];
-        if (p !== " " && isWhite(p) === forWhite) {
-          for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 8; xx++) {
-            if (isLegalMove(x, y, xx, yy)) {
-              const save = board.map(r => [...r]);
-              const m = { ...moved };
-              board[yy][xx] = p; board[y][x] = " ";
-              if (!isCheck(forWhite)) moves.push([x, y, xx, yy]);
-              board = save; moved = m;
-            }
-          }
-        }
-      }
-      return moves;
-    }
-
-    function handleClick(x, y) {
-      const p = board[y][x];
-      if (selected) {
-        const fx = selected.x, fy = selected.y;
-        const piece = board[fy][fx];
-        if (isWhite(piece) !== whiteTurn) {
-          selected = null;
-} else if (isLegalMove(fx, fy, x, y)) {
-  const target = board[y][x]; // <-- NEU
-  const oldBoard = board.map(r => [...r]);
-  const oldMoved = { ...moved };
-  board[y][x] = piece;
-  board[fy][fx] = " ";
-
-  if (target !== " ") {
-    playSound("capture"); // <-- NEU
-  } else {
-    playSound("move");    // <-- NEU
-  }
-          // Rochade
-          if (piece.toLowerCase() === "k" && Math.abs(x - fx) === 2) {
-            const row = fy;
-            if (x > fx) { board[row][5] = board[row][7]; board[row][7] = " "; }
-            else { board[row][3] = board[row][0]; board[row][0] = " "; }
-          }
-          // Umwandlung
-          if (piece.toLowerCase() === "p" && (y === 0 || y === 7)) {
-            board[y][x] = isWhite(piece) ? "Q" : "q";
-          }
-          // Zug speichern
-          if (piece.toLowerCase() === "k") moved[(whiteTurn ? "w" : "b") + "k"] = true;
-          if (piece.toLowerCase() === "r") {
-            if (fx === 0) moved[(whiteTurn ? "w" : "b") + "ra"] = true;
-            if (fx === 7) moved[(whiteTurn ? "w" : "b") + "rh"] = true;
-          }
-          if (!isCheck(whiteTurn)) whiteTurn = !whiteTurn;
-          else { board = oldBoard; moved = oldMoved; }
-          selected = null;
-        } else selected = null;
-      } else if (p !== " " && isWhite(p) === whiteTurn) {
-        selected = { x, y };
-      }
-      renderBoard();
-    }
-
-    renderBoard();
-
-function playSound(type) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  gain.gain.value = volume;
-  if (type === "move") osc.frequency.value = 440;
-  if (type === "capture") osc.frequency.value = 220;
-  if (type === "check") osc.frequency.value = 660;
-  osc.type = "square";
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.1);
-}
-
-document.getElementById("volumeSlider").addEventListener("input", e => {
-  volume = parseFloat(e.target.value);
-});
-
-
-</script>
-
-<script>document.addEventListener("contextmenu",function(e){e.preventDefault();});</script>
 </body>
 </html>

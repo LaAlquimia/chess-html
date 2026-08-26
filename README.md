@@ -4,9 +4,14 @@ A modern, high-performance HTML5 chess web application powered by **Stockfish AI
 
 No heavy frameworks, zero external dependencies – just pure, blazing-fast web standards.
 
+## 🚀 Juega Ahora / Live Demo
+
+- 🤖 **Jugar contra Stockfish AI:** **[https://laalquimia.github.io/chess/](https://laalquimia.github.io/chess/)**
+- ⚔️ **Modo 2 Jugadores (Pass & Play):** **[https://laalquimia.github.io/chess/pvp.html](https://laalquimia.github.io/chess/pvp.html)**
+
 ---
 
-## 🚀 Key Features
+## 🌟 Key Features
 
 ### 📱 100% Full-Screen Mobile Responsive (Portrait & Landscape)
 - **Mobile Portrait (≤ 768px):** Board spans **100% viewport width (`100vw`)** edge-to-edge with zero dead space or horizontal scrolling. Includes tactile touch controls, mobile player cards, captured piece trays, and a bottom floating dock.

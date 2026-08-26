@@ -42,7 +42,12 @@
       this.pendingPromotionMove = null; // { from: {x,y}, to: {x,y} }
       this.isAiThinking = false;
       this.evalScore = 0.0;
-      this.dragState = null;
+      this.pointerInteraction = null;
+      this._ignoreNextClick = false;
+
+      this._boundPointerMove = (e) => this._onPointerMove(e);
+      this._boundPointerUp = (e) => this._onPointerUp(e);
+      this._boundPointerCancel = (e) => this._onPointerCancel(e);
 
       // 4. Cache DOM Elements
       this._cacheDOM();
@@ -303,6 +308,12 @@
             sq.classList.add('in-check');
           }
 
+          // Dragging state highlight (semi-transparent origin square)
+          if (this.pointerInteraction && this.pointerInteraction.dragInitiated &&
+              this.pointerInteraction.startSquare.x === x && this.pointerInteraction.startSquare.y === y) {
+            sq.classList.add('is-dragging');
+          }
+
           // Clear square inner contents
           sq.innerHTML = '';
 
@@ -516,32 +527,27 @@
     }
 
     /* --------------------------------------------------------------------------
-       CLICK & TOUCH INTERACTIONS
+       CLICK & TOUCH INTERACTIONS (Unified Pointer System)
        -------------------------------------------------------------------------- */
     _bindEvents() {
-      // 1. Board Clicks / Taps
-      if (this.dom.chessboard) {
-        this.dom.chessboard.addEventListener('click', (e) => this._handleBoardClick(e));
-      }
+      // 1. Board Interaction (Pointer events for drag & tap)
+      this._setupBoardInteractions();
 
-      // 2. Drag & Drop Support
-      this._setupDragAndDrop();
-
-      // 3. Header Action Buttons
+      // 2. Header Action Buttons
       if (this.dom.btnHeaderSettings) this.dom.btnHeaderSettings.addEventListener('click', () => this.openSettingsModal());
       if (this.dom.btnHeaderFlip) this.dom.btnHeaderFlip.addEventListener('click', () => this.flipBoard());
       if (this.dom.btnHeaderNewGame) this.dom.btnHeaderNewGame.addEventListener('click', () => this.restartGame());
       if (this.dom.btnHeaderMute) this.dom.btnHeaderMute.addEventListener('click', () => this.toggleMute());
       if (this.dom.btnHeaderTheme) this.dom.btnHeaderTheme.addEventListener('click', () => this.cycleBoardTheme());
 
-      // 4. Mobile Bottom Dock
+      // 3. Mobile Bottom Dock
       if (this.dom.btnDockUndo) this.dom.btnDockUndo.addEventListener('click', () => this.undoMove());
       if (this.dom.btnDockNewGame) this.dom.btnDockNewGame.addEventListener('click', () => this.restartGame());
       if (this.dom.btnDockFlip) this.dom.btnDockFlip.addEventListener('click', () => this.flipBoard());
       if (this.dom.btnDockSettings) this.dom.btnDockSettings.addEventListener('click', () => this.openSettingsModal());
       if (this.dom.btnDockDifficulty) this.dom.btnDockDifficulty.addEventListener('click', () => this.openSettingsModal());
 
-      // 5. Desktop Sidebar Buttons
+      // 4. Desktop Sidebar Buttons
       if (this.dom.btnSidebarNewGame) this.dom.btnSidebarNewGame.addEventListener('click', () => this.restartGame());
       if (this.dom.btnSidebarUndo) this.dom.btnSidebarUndo.addEventListener('click', () => this.undoMove());
       if (this.dom.btnSidebarFlip) this.dom.btnSidebarFlip.addEventListener('click', () => this.flipBoard());
@@ -549,14 +555,24 @@
       if (this.dom.btnSidebarResign) this.dom.btnSidebarResign.addEventListener('click', () => this.handleResign());
       if (this.dom.btnSidebarDraw) this.dom.btnSidebarDraw.addEventListener('click', () => this.handleOfferDraw());
 
-      // 6. Settings Form Listeners
+      // 5. Settings Form Listeners
       this._bindSettingsFormEvents();
 
-      // 7. Keyboard Shortcuts
+      // 6. Keyboard Shortcuts
       document.addEventListener('keydown', (e) => this._handleKeyboardShortcuts(e));
     }
 
-    _handleBoardClick(e) {
+    _setupBoardInteractions() {
+      if (!this.dom.chessboard) return;
+
+      this.dom.chessboard.addEventListener('pointerdown', (e) => this._onPointerDown(e));
+      this.dom.chessboard.addEventListener('click', (e) => this._handleBoardClick(e));
+    }
+
+    _onPointerDown(e) {
+      // Only accept primary pointer button (left click or touch)
+      if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+
       if (this.isAiThinking) {
         this.showToast('Stockfish is calculating...', 'info');
         return;
@@ -571,6 +587,229 @@
       const y = parseInt(squareEl.dataset.y, 10);
       if (isNaN(x) || isNaN(y)) return;
 
+      const turn = this.game.getTurn();
+      if (this.mode === 'ai' && turn !== this.playerColor) {
+        return;
+      }
+
+      const piece = this.game.getPiece(x, y);
+      const isOwnPiece = piece && (
+        (turn === 'w' && piece === piece.toUpperCase()) ||
+        (turn === 'b' && piece === piece.toLowerCase())
+      );
+
+      // Clean up any lingering drag state
+      this._cleanupDragGhost();
+
+      this.pointerInteraction = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startSquare: { x, y },
+        isOwnPiece: !!isOwnPiece,
+        dragInitiated: false,
+        ghostEl: null,
+        originSquareEl: squareEl,
+        piece: piece
+      };
+
+      window.addEventListener('pointermove', this._boundPointerMove, { passive: false });
+      window.addEventListener('pointerup', this._boundPointerUp);
+      window.addEventListener('pointercancel', this._boundPointerCancel);
+    }
+
+    _onPointerMove(e) {
+      if (!this.pointerInteraction) return;
+      if (e.pointerId !== this.pointerInteraction.pointerId) return;
+
+      const state = this.pointerInteraction;
+      const dx = e.clientX - state.startX;
+      const dy = e.clientY - state.startY;
+      const dist = Math.hypot(dx, dy);
+
+      // Initiate drag if threshold passed (> 6px) and pointer started on player's own piece
+      if (!state.dragInitiated && dist > 6) {
+        if (state.isOwnPiece) {
+          state.dragInitiated = true;
+
+          // Select starting piece if not selected yet
+          this.selectedSquare = { x: state.startSquare.x, y: state.startSquare.y };
+          this.legalMovesForSelected = this.game.getLegalMoves(state.startSquare.x, state.startSquare.y);
+          this.render();
+
+          // Mark origin square as dragging
+          const refreshedOrigin = this._getSquareElement(state.startSquare.x, state.startSquare.y);
+          if (refreshedOrigin) {
+            refreshedOrigin.classList.add('is-dragging');
+            state.originSquareEl = refreshedOrigin;
+          }
+
+          // Create floating drag ghost
+          const ghost = document.createElement('div');
+          ghost.className = 'drag-ghost';
+          ghost.innerHTML = this.pieces.getPieceSVG(state.piece, this.settings.pieceStyle);
+          ghost.style.left = `${e.clientX}px`;
+          ghost.style.top = `${e.clientY}px`;
+          document.body.appendChild(ghost);
+          state.ghostEl = ghost;
+        }
+      }
+
+      if (state.dragInitiated && state.ghostEl) {
+        state.ghostEl.style.left = `${e.clientX}px`;
+        state.ghostEl.style.top = `${e.clientY}px`;
+      }
+    }
+
+    _onPointerUp(e) {
+      if (!this.pointerInteraction) return;
+      if (e.pointerId !== this.pointerInteraction.pointerId) return;
+
+      const state = this.pointerInteraction;
+      this.pointerInteraction = null;
+
+      window.removeEventListener('pointermove', this._boundPointerMove);
+      window.removeEventListener('pointerup', this._boundPointerUp);
+      window.removeEventListener('pointercancel', this._boundPointerCancel);
+
+      // Clean up visual drag indicators
+      if (state.ghostEl) {
+        state.ghostEl.remove();
+        state.ghostEl = null;
+      }
+      if (state.originSquareEl) {
+        state.originSquareEl.classList.remove('is-dragging');
+      }
+
+      // Suppress subsequent synthetic click events
+      this._ignoreNextClick = true;
+      setTimeout(() => {
+        this._ignoreNextClick = false;
+      }, 100);
+
+      if (state.dragInitiated) {
+        // --- DRAG AND DROP RESOLUTION ---
+        const target = this._getSquareFromPoint(e.clientX, e.clientY);
+
+        if (target) {
+          const tx = target.x;
+          const ty = target.y;
+
+          // Check if drop target is in legal moves
+          const legalMove = this.legalMovesForSelected.find(m => m.x === tx && m.y === ty);
+          if (legalMove) {
+            if (legalMove.isPromotion) {
+              this.pendingPromotionMove = {
+                from: { ...state.startSquare },
+                to: { x: tx, y: ty }
+              };
+              this.openPromotionModal(this.game.getTurn());
+              return;
+            }
+
+            const from = { ...state.startSquare };
+            this.selectedSquare = null;
+            this.legalMovesForSelected = [];
+            this.executeMove(from, { x: tx, y: ty });
+            return;
+          }
+        }
+
+        // Dropped on invalid square or same square -> cancel drag & keep piece selected
+        this.selectedSquare = { ...state.startSquare };
+        this.legalMovesForSelected = this.game.getLegalMoves(state.startSquare.x, state.startSquare.y);
+        this.render();
+      } else {
+        // --- TAP / CLICK RESOLUTION ---
+        this.handleSquareSelect(state.startSquare.x, state.startSquare.y);
+      }
+    }
+
+    _onPointerCancel(e) {
+      if (!this.pointerInteraction) return;
+      const state = this.pointerInteraction;
+      this.pointerInteraction = null;
+
+      window.removeEventListener('pointermove', this._boundPointerMove);
+      window.removeEventListener('pointerup', this._boundPointerUp);
+      window.removeEventListener('pointercancel', this._boundPointerCancel);
+
+      if (state.ghostEl) {
+        state.ghostEl.remove();
+      }
+      if (state.originSquareEl) {
+        state.originSquareEl.classList.remove('is-dragging');
+      }
+      this.render();
+    }
+
+    _cleanupDragGhost() {
+      if (this.pointerInteraction && this.pointerInteraction.ghostEl) {
+        this.pointerInteraction.ghostEl.remove();
+        this.pointerInteraction.ghostEl = null;
+      }
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('.drag-ghost').forEach(el => el.remove());
+        document.querySelectorAll('.square.is-dragging').forEach(el => el.classList.remove('is-dragging'));
+      }
+    }
+
+    _getSquareElement(x, y) {
+      if (!this.dom.chessboard) return null;
+      return this.dom.chessboard.querySelector(`.square[data-x="${x}"][data-y="${y}"]`);
+    }
+
+    _getSquareFromPoint(clientX, clientY) {
+      // 1. Try DOM elementFromPoint
+      if (typeof document !== 'undefined' && document.elementFromPoint) {
+        const el = document.elementFromPoint(clientX, clientY);
+        const sq = el ? el.closest('.square') : null;
+        if (sq) {
+          const x = parseInt(sq.dataset.x, 10);
+          const y = parseInt(sq.dataset.y, 10);
+          if (!isNaN(x) && !isNaN(y)) {
+            return { x, y, el: sq };
+          }
+        }
+      }
+
+      // 2. Fallback: calculate from chessboard bounding rect
+      if (this.dom.chessboard && typeof this.dom.chessboard.getBoundingClientRect === 'function') {
+        const rect = this.dom.chessboard.getBoundingClientRect();
+        if (
+          clientX >= rect.left && clientX <= rect.right &&
+          clientY >= rect.top && clientY <= rect.bottom &&
+          rect.width > 0 && rect.height > 0
+        ) {
+          const col = Math.floor((clientX - rect.left) / (rect.width / 8));
+          const row = Math.floor((clientY - rect.top) / (rect.height / 8));
+          if (col >= 0 && col < 8 && row >= 0 && row < 8) {
+            const x = this.boardFlipped ? (7 - col) : col;
+            const y = this.boardFlipped ? (7 - row) : row;
+            const sqEl = this._getSquareElement(x, y);
+            return { x, y, el: sqEl };
+          }
+        }
+      }
+
+      return null;
+    }
+
+    _handleBoardClick(e) {
+      if (this._ignoreNextClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Accessible keyboard click support
+      const squareEl = e.target.closest('.square');
+      if (!squareEl) return;
+
+      const x = parseInt(squareEl.dataset.x, 10);
+      const y = parseInt(squareEl.dataset.y, 10);
+      if (isNaN(x) || isNaN(y)) return;
+
       this.handleSquareSelect(x, y);
     }
 
@@ -578,6 +817,13 @@
      * Core move selection & execution logic
      */
     handleSquareSelect(x, y) {
+      if (this.isAiThinking) {
+        this.showToast('Stockfish is calculating...', 'info');
+        return;
+      }
+
+      if (this.game.isGameOver()) return;
+
       const turn = this.game.getTurn();
       const clickedPiece = this.game.getPiece(x, y);
       const isPieceOfCurrentTurn = clickedPiece && (
@@ -590,10 +836,18 @@
         return;
       }
 
-      // Scenario 1: Piece is already selected and clicked square is a legal destination
+      // Scenario 1: Piece is already selected
       if (this.selectedSquare) {
-        const legalMove = this.legalMovesForSelected.find(m => m.x === x && m.y === y);
+        // 1a. Clicking the SAME square deselects it
+        if (this.selectedSquare.x === x && this.selectedSquare.y === y) {
+          this.selectedSquare = null;
+          this.legalMovesForSelected = [];
+          this.render();
+          return;
+        }
 
+        // 1b. Clicking a legal destination square executes the move
+        const legalMove = this.legalMovesForSelected.find(m => m.x === x && m.y === y);
         if (legalMove) {
           // Check for Pawn Promotion
           if (legalMove.isPromotion) {
@@ -606,34 +860,34 @@
           }
 
           // Execute normal move
-          this.executeMove(this.selectedSquare, { x, y });
+          const from = { ...this.selectedSquare };
           this.selectedSquare = null;
           this.legalMovesForSelected = [];
+          this.executeMove(from, { x, y });
           return;
         }
 
-        // Clicking the same square deselects it
-        if (this.selectedSquare.x === x && this.selectedSquare.y === y) {
-          this.selectedSquare = null;
-          this.legalMovesForSelected = [];
+        // 1c. Clicking ANOTHER piece of the current turn switches selection
+        if (isPieceOfCurrentTurn) {
+          this.selectedSquare = { x, y };
+          this.legalMovesForSelected = this.game.getLegalMoves(x, y);
           this.render();
           return;
         }
+
+        // 1d. Clicking an empty or invalid square clears selection
+        this.selectedSquare = null;
+        this.legalMovesForSelected = [];
+        this.render();
+        return;
       }
 
-      // Scenario 2: Clicking own piece selects it and reveals legal moves
+      // Scenario 2: No piece selected yet -> Clicking own piece selects it and reveals legal moves
       if (isPieceOfCurrentTurn) {
         this.selectedSquare = { x, y };
         this.legalMovesForSelected = this.game.getLegalMoves(x, y);
         this.render();
         return;
-      }
-
-      // Scenario 3: Clicking an empty or invalid square clears selection
-      if (this.selectedSquare) {
-        this.selectedSquare = null;
-        this.legalMovesForSelected = [];
-        this.render();
       }
     }
 
@@ -756,101 +1010,10 @@
     }
 
     /* --------------------------------------------------------------------------
-       DRAG AND DROP SUPPORT
-       -------------------------------------------------------------------------- */
-    _setupDragAndDrop() {
-      let activeSquare = null;
-      let dragGhost = null;
-
-      const onPointerDown = (e) => {
-        if (this.isAiThinking || this.game.isGameOver()) return;
-        const sq = e.target.closest('.square');
-        if (!sq) return;
-
-        const x = parseInt(sq.dataset.x, 10);
-        const y = parseInt(sq.dataset.y, 10);
-        const piece = this.game.getPiece(x, y);
-        if (!piece) return;
-
-        const turn = this.game.getTurn();
-        const isOwn = (turn === 'w' && piece === piece.toUpperCase()) || (turn === 'b' && piece === piece.toLowerCase());
-        if (!isOwn) return;
-        if (this.mode === 'ai' && turn !== this.playerColor) return;
-
-        activeSquare = { x, y, el: sq };
-        this.selectedSquare = { x, y };
-        this.legalMovesForSelected = this.game.getLegalMoves(x, y);
-        this.render();
-
-        // Create Drag Ghost
-        dragGhost = document.createElement('div');
-        dragGhost.className = 'drag-ghost';
-        dragGhost.innerHTML = this.pieces.getPieceSVG(piece, this.settings.pieceStyle);
-        dragGhost.style.left = `${e.clientX}px`;
-        dragGhost.style.top = `${e.clientY}px`;
-        document.body.appendChild(dragGhost);
-
-        sq.classList.add('is-dragging');
-
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
-      };
-
-      const onPointerMove = (e) => {
-        if (!dragGhost) return;
-        dragGhost.style.left = `${e.clientX}px`;
-        dragGhost.style.top = `${e.clientY}px`;
-      };
-
-      const onPointerUp = (e) => {
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-
-        if (activeSquare && activeSquare.el) {
-          activeSquare.el.classList.remove('is-dragging');
-        }
-
-        if (dragGhost) {
-          dragGhost.remove();
-          dragGhost = null;
-        }
-
-        // Check if dropped over a square
-        const targetElement = document.elementFromPoint(e.clientX, e.clientY);
-        const targetSquare = targetElement ? targetElement.closest('.square') : null;
-
-        if (targetSquare && activeSquare) {
-          const tx = parseInt(targetSquare.dataset.x, 10);
-          const ty = parseInt(targetSquare.dataset.y, 10);
-
-          if (!isNaN(tx) && !isNaN(ty) && (tx !== activeSquare.x || ty !== activeSquare.y)) {
-            const isLegal = this.legalMovesForSelected.some(m => m.x === tx && m.y === ty);
-            if (isLegal) {
-              const legalMove = this.legalMovesForSelected.find(m => m.x === tx && m.y === ty);
-              if (legalMove && legalMove.isPromotion) {
-                this.pendingPromotionMove = { from: { x: activeSquare.x, y: activeSquare.y }, to: { x: tx, y: ty } };
-                this.openPromotionModal(this.game.getTurn());
-              } else {
-                this.executeMove(activeSquare, { x: tx, y: ty });
-                this.selectedSquare = null;
-                this.legalMovesForSelected = [];
-              }
-            }
-          }
-        }
-
-        activeSquare = null;
-      };
-
-      if (this.dom.chessboard) {
-        this.dom.chessboard.addEventListener('pointerdown', onPointerDown);
-      }
-    }
-
-    /* --------------------------------------------------------------------------
        CONTROLS: UNDO, FLIP, RESTART, RESIGN, DRAW
        -------------------------------------------------------------------------- */
     undoMove() {
+      this._cleanupDragGhost();
       if (this.isAiThinking) {
         this.ai.stop();
         this.isAiThinking = false;
@@ -885,12 +1048,14 @@
     }
 
     flipBoard() {
+      this._cleanupDragGhost();
       this.boardFlipped = !this.boardFlipped;
       this.render();
       this.showToast(this.boardFlipped ? 'Board flipped: Black at bottom' : 'Board flipped: White at bottom', 'info');
     }
 
     restartGame() {
+      this._cleanupDragGhost();
       this.game.resetGame();
       this.ai.newGame();
       this.selectedSquare = null;
@@ -1213,6 +1378,9 @@
     });
   }
 
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = ChessApp;
+  }
   global.ChessApp = ChessApp;
 
-})(typeof window !== 'undefined' ? window : this);
+})(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this));

@@ -504,6 +504,7 @@ button {
   overflow: hidden;
   box-shadow: var(--shadow-board);
   user-select: none;
+  -webkit-user-select: none;
   touch-action: none;
 }
 
@@ -516,6 +517,9 @@ button {
   background-color: var(--board-dark);
   box-sizing: border-box;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 /* Square */
@@ -528,9 +532,18 @@ button {
   justify-content: center;
   cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   box-sizing: border-box;
   overflow: hidden;
   transition: background-color var(--transition-fast);
+}
+
+/* Ensure ALL inner children of .square have pointer-events: none */
+.square * {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .square.light {
@@ -554,6 +567,7 @@ button {
   pointer-events: none;
   opacity: 0.75;
   user-select: none;
+  -webkit-user-select: none;
   line-height: 1;
 }
 
@@ -584,10 +598,23 @@ button {
   object-fit: contain;
   pointer-events: none;
   user-select: none;
-  display: block;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.32));
   transition: transform var(--transition-fast);
   will-change: transform;
+}
+
+.piece-svg svg,
+.piece-svg path,
+.piece-svg g,
+.chess-piece-svg,
+.chess-piece-svg * {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .square:hover .piece-svg {
@@ -599,26 +626,37 @@ button {
 }
 
 /* Cyber piece glow */
-[data-board-theme="cyber"] .piece-svg.piece-white {
+[data-board-theme="cyber"] .piece-svg.piece-white,
+[data-board-theme="cyber"] .piece-svg .piece-white {
   filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.65));
 }
-[data-board-theme="cyber"] .piece-svg.piece-black {
+[data-board-theme="cyber"] .piece-svg.piece-black,
+[data-board-theme="cyber"] .piece-svg .piece-black {
   filter: drop-shadow(0 0 4px rgba(240, 0, 255, 0.65));
 }
 
 /* Dragging state */
 .square.is-dragging .piece-svg {
-  opacity: 0.3;
+  opacity: 0.25;
 }
 
 .drag-ghost {
   position: fixed;
   pointer-events: none;
-  z-index: 1000;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 9999;
   width: 60px;
   height: 60px;
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.5));
+  will-change: left, top;
+}
+
+.drag-ghost * {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ==========================================================================
@@ -654,6 +692,8 @@ button {
   border-radius: 50%;
   background-color: var(--board-dot);
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
   z-index: 10;
   transform: scale(1);
   transition: transform var(--transition-fast), background-color var(--transition-fast);
@@ -682,6 +722,8 @@ button {
   border-radius: 50%;
   box-sizing: border-box;
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
   z-index: 10;
   animation: captureRingPulse 1.8s infinite ease-in-out;
 }

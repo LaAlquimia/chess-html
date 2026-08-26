@@ -796,6 +796,14 @@
     makeMove(from, to, promotion = 'Q') {
       let moveObj = null;
 
+      // Helper to normalize coordinate/square input to { x, y }
+      const parseCoord = (c) => {
+        if (!c) return null;
+        if (typeof c === 'string') return squareToCoords(c);
+        if (typeof c === 'object' && typeof c.x === 'number' && typeof c.y === 'number') return { x: c.x, y: c.y };
+        return null;
+      };
+
       // Format 1: makeMove("e2e4") or makeMove("e7e8q")
       if (typeof from === 'string' && from.length >= 4 && !to) {
         const uci = from;
@@ -805,18 +813,19 @@
         if (!f || !t) return null;
         moveObj = { from: f, to: t, promotion: p };
       }
-      // Format 2: makeMove("e2", "e4", "Q")
-      else if (typeof from === 'string' && typeof to === 'string') {
-        const f = squareToCoords(from);
-        const t = squareToCoords(to);
-        if (!f || !t) return null;
-        moveObj = { from: f, to: t, promotion: (promotion || 'Q').toUpperCase() };
-      }
-      // Format 3: makeMove({ from: {x,y}|'e2', to: {x,y}|'e4', promotion: 'Q' })
-      else if (typeof from === 'object' && from !== null) {
-        const f = typeof from.from === 'string' ? squareToCoords(from.from) : from.from;
-        const t = typeof from.to === 'string' ? squareToCoords(from.to) : from.to;
+      // Format 2: Single move object: makeMove({ from: ..., to: ..., promotion: ... })
+      else if (typeof from === 'object' && from !== null && (from.from !== undefined || from.to !== undefined)) {
+        const f = parseCoord(from.from);
+        const t = parseCoord(from.to);
         const p = (from.promotion || to || 'Q').toString().toUpperCase();
+        if (!f || !t) return null;
+        moveObj = { from: f, to: t, promotion: p };
+      }
+      // Format 3: Two arguments: makeMove(from, to, promotion) where from and to can be {x, y} or 'e2'
+      else if (from && to) {
+        const f = parseCoord(from);
+        const t = parseCoord(to);
+        const p = (promotion || 'Q').toString().toUpperCase();
         if (!f || !t) return null;
         moveObj = { from: f, to: t, promotion: p };
       }

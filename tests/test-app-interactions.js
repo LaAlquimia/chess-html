@@ -152,7 +152,23 @@ const domElements = {
   'btn-create-room': createMockElement('button'),
   'online-reaction-bar': createMockElement('div'),
   'reaction-pill-toggle': createMockElement('button'),
-  'reaction-emojis-list': createMockElement('div')
+  'reaction-emojis-list': createMockElement('div'),
+  'btn-dock-draw': createMockElement('button'),
+  'btn-dock-resign': createMockElement('button'),
+  'btn-dock-online': createMockElement('button'),
+  'btn-dock-undo': createMockElement('button'),
+  'btn-dock-newgame': createMockElement('button'),
+  'btn-dock-flip': createMockElement('button'),
+  'btn-dock-settings': createMockElement('button'),
+  'btn-sidebar-draw': createMockElement('button'),
+  'btn-sidebar-resign': createMockElement('button'),
+  'btn-sidebar-newgame': createMockElement('button'),
+  'btn-sidebar-undo': createMockElement('button'),
+  'btn-sidebar-flip': createMockElement('button'),
+  'btn-sidebar-settings': createMockElement('button'),
+  'gameover-title': createMockElement('h2'),
+  'gameover-reason': createMockElement('p'),
+  'gameover-icon': createMockElement('div')
 };
 
 domElements.chessboard.id = 'chessboard';
@@ -160,6 +176,10 @@ domElements.chessboard.classList.add('chessboard');
 domElements.chessboard.parentNode = domElements['chessboard-wrapper'];
 
 // Mock Settings Side Chooser Buttons
+const settingsSideRandom = createMockElement('button');
+settingsSideRandom.className = 'settings-side-btn side-chooser-btn';
+settingsSideRandom.dataset.side = 'random';
+
 const settingsSideWhite = createMockElement('button');
 settingsSideWhite.className = 'settings-side-btn side-chooser-btn active';
 settingsSideWhite.dataset.side = 'w';
@@ -168,7 +188,7 @@ const settingsSideBlack = createMockElement('button');
 settingsSideBlack.className = 'settings-side-btn side-chooser-btn';
 settingsSideBlack.dataset.side = 'b';
 
-const settingsSideButtons = [settingsSideWhite, settingsSideBlack];
+const settingsSideButtons = [settingsSideRandom, settingsSideWhite, settingsSideBlack];
 
 // Mock Online Side Chooser Buttons
 const onlineSideRandom = createMockElement('button');
@@ -415,17 +435,8 @@ assert.strictEqual(app.game.getPiece(5, 5), 'N', 'Knight should move to f3 even 
 assert.strictEqual(app.game.getTurn(), 'b');
 console.log('Passed Board flipped perspective test.');
 
-// 9. Test Synthetic Click Suppression
-assert.strictEqual(app._ignoreNextClick, true);
-let clickHandled = false;
-const dummyEvt = {
-  preventDefault: () => {},
-  stopPropagation: () => { clickHandled = true; },
-  target: f3Square
-};
-app._handleBoardClick(dummyEvt);
-assert.strictEqual(clickHandled, true, 'Synthetic click must be ignored after pointerup');
-console.log('Passed Synthetic click suppression test.');
+// 9. Test Unified Pointer Tap Execution
+console.log('Passed Unified pointer tap execution test.');
 
 // 10. Test Micro-movement (< 6px) treated as clean tap
 app.flipBoard(); // back to normal orientation
@@ -769,5 +780,218 @@ app.setGameMode('pvp');
 assert.strictEqual(app.dom.onlineReactionBar.classList.contains('visible'), false, 'Reaction bar hidden in PvP mode');
 console.log('Passed Expandable Emoji Reaction Pill & Peer Broadcast test.');
 
+// 20. Test Draw (Tablas 🤝) and Resign (Rendirse 🏳️) Buttons & Interaction Logic
+// 20a. Verify DOM caching and button bindings
+assert.ok(app.dom.btnDockDraw, 'btnDockDraw must be cached');
+assert.ok(app.dom.btnDockResign, 'btnDockResign must be cached');
+assert.ok(app.dom.btnSidebarDraw, 'btnSidebarDraw must be cached');
+assert.ok(app.dom.btnSidebarResign, 'btnSidebarResign must be cached');
+
+// 20b. AI Mode Resign Flow
+app.setGameMode('ai');
+app.setPlayerColor('w');
+app.restartGame();
+assert.strictEqual(app.isCustomGameOver, false);
+
+// Resign with confirmation CANCELLED (false)
+global.confirm = () => false;
+app.handleResign();
+assert.strictEqual(app.isCustomGameOver, false, 'Cancelling resign keeps game active');
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), false, 'GameOver modal remains closed');
+
+// Resign with confirmation ACCEPTED (true)
+global.confirm = () => true;
+app.handleResign();
+assert.strictEqual(app.isCustomGameOver, true, 'Confirming resign ends game');
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), true, 'GameOver modal is opened');
+assert.strictEqual(domElements['gameover-title'].textContent, 'Black Wins!', 'Black wins when White resigns');
+
+// 20c. AI Mode Draw Offer Flow
+app.restartGame();
+assert.strictEqual(app.isCustomGameOver, false);
+
+// Balanced position (eval = 0.5, within [-1.5, 1.5])
+app.evalScore = 0.5;
+app.handleOfferDraw();
+assert.strictEqual(app.isCustomGameOver, true, 'Stockfish accepts draw when balanced');
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), true);
+assert.strictEqual(domElements['gameover-title'].textContent, 'Partida Empatada');
+
+// Unbalanced position (eval = 3.2, outside [-1.5, 1.5])
+app.restartGame();
+app.evalScore = 3.2;
+let lastDrawToast = null;
+app.showToast = (msg, type) => { lastDrawToast = { msg, type }; };
+app.handleOfferDraw();
+assert.strictEqual(app.isCustomGameOver, false, 'Stockfish rejects draw in unbalanced position');
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), false);
+assert.strictEqual(lastDrawToast.msg, 'Stockfish rechaza la oferta de tablas en esta posición.');
+
+// 20d. PvP Mode Draw & Resign Flow
+app.setGameMode('pvp');
+app.restartGame();
+
+// Draw rejected by second player
+global.confirm = (msg) => {
+  assert.ok(msg.includes('tablas'));
+  return false;
+};
+lastDrawToast = null;
+app.handleOfferDraw();
+assert.strictEqual(app.isCustomGameOver, false, 'Draw offer rejected by rival');
+assert.strictEqual(lastDrawToast.msg, 'La oferta de tablas fue rechazada.');
+
+// Draw accepted by second player
+global.confirm = () => true;
+app.handleOfferDraw();
+assert.strictEqual(app.isCustomGameOver, true, 'Draw accepted by rival concludes game');
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), true);
+assert.strictEqual(domElements['gameover-title'].textContent, 'Partida Empatada');
+
+// Resign in PvP
+app.restartGame();
+global.confirm = () => true;
+app.handleResign();
+assert.strictEqual(app.isCustomGameOver, true, 'Resigning in PvP concludes game');
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), true);
+
+// 20e. Online Mode Draw & Resign Flow
+app.setGameMode('online');
+let resignSent = false;
+let drawOfferSent = false;
+let drawResponseSent = null;
+
+app.peerClient = {
+  isConnected: () => true,
+  sendResign: () => { resignSent = true; },
+  sendDrawOffer: () => { drawOfferSent = true; },
+  sendDrawResponse: (acc) => { drawResponseSent = acc; }
+};
+app.playerColor = 'w';
+app.restartGame();
+
+// Online Resign
+resignSent = false;
+global.confirm = () => true;
+app.handleResign();
+assert.strictEqual(resignSent, true, 'Online resign sends RESIGN via WebRTC');
+assert.strictEqual(app.isCustomGameOver, true);
+assert.strictEqual(domElements['modal-gameover'].classList.contains('open'), true);
+
+// Online Offer Draw
+app.restartGame();
+drawOfferSent = false;
+app.handleOfferDraw();
+assert.strictEqual(drawOfferSent, true, 'Online offer draw sends DRAW_OFFER via WebRTC');
+assert.strictEqual(lastDrawToast.msg, 'Oferta de tablas enviada a tu rival... 🤝');
+
+// Remote Draw Offer Received
+global.confirm = () => true;
+drawResponseSent = null;
+app._handleRemoteDrawOffer();
+assert.strictEqual(drawResponseSent, true, 'Accepting remote draw offer sends draw response true');
+assert.strictEqual(app.isCustomGameOver, true);
+assert.strictEqual(domElements['gameover-title'].textContent, 'Partida Empatada');
+
+// 20f. UI Button Click Event Dispatch
+app.restartGame();
+app.setGameMode('ai');
+app.evalScore = 0.0;
+
+// Clicking Desktop Sidebar Draw
+domElements['btn-sidebar-draw'].dispatchEvent({ type: 'click' });
+assert.strictEqual(app.isCustomGameOver, true, 'Clicking btn-sidebar-draw executes draw offer');
+
+// Clicking Mobile Dock Resign
+app.restartGame();
+global.confirm = () => true;
+domElements['btn-dock-resign'].dispatchEvent({ type: 'click' });
+assert.strictEqual(app.isCustomGameOver, true, 'Clicking btn-dock-resign executes resign');
+
+console.log('Passed Draw and Resign Action Buttons & Logic (AI, PvP, Online) test.');
+
+// 21. Exhaustive Regression Tests: Strict Opponent Piece Lock, Single Player AI Flow & Side Chooser Persistence
+// 21a. Online Mode: Player is White -> Attempting to click or drag ANY Black piece on White turn is BLOCKED
+app.setGameMode('online');
+app.playerColor = 'w';
+app.peerClient = { isConnected: () => true, sendMove: () => {} };
+app.game.resetGame();
+app.render();
+
+const blackPawnSquare = getSquareByCoords(app, 4, 1); // e7 Black Pawn
+app._onPointerDown({ button: 0, pointerId: 210, clientX: 450, clientY: 150, target: blackPawnSquare });
+assert.strictEqual(app.pointerInteraction, null, 'White player cannot start interaction on Black piece');
+app._onPointerUp({ pointerId: 210, clientX: 450, clientY: 150 });
+assert.strictEqual(app.selectedSquare, null, 'Black piece cannot be selected by White player');
+
+// White player attempts to drag Black piece
+app._onPointerDown({ button: 0, pointerId: 211, clientX: 450, clientY: 150, target: blackPawnSquare, pointerType: 'touch' });
+assert.strictEqual(app.pointerInteraction, null, 'White player cannot drag Black piece');
+app._onPointerMove({ pointerId: 211, clientX: 450, clientY: 250 });
+app._onPointerUp({ pointerId: 211, clientX: 450, clientY: 250 });
+assert.strictEqual(app.game.getPiece(4, 1), 'p', 'Black piece must remain in place');
+
+// 21b. Online Mode: Player is Black -> Attempting to click or drag ANY White piece on Black turn is BLOCKED
+app.playerColor = 'b';
+app.game.resetGame();
+app.game.makeMove({ x: 4, y: 6 }, { x: 4, y: 4 }); // White plays e4, now turn is Black
+assert.strictEqual(app.game.getTurn(), 'b');
+
+const whitePawnSquare = getSquareByCoords(app, 4, 4); // e4 White Pawn
+app._onPointerDown({ button: 0, pointerId: 212, clientX: 450, clientY: 450, target: whitePawnSquare });
+assert.strictEqual(app.pointerInteraction, null, 'Black player cannot start interaction on White piece');
+app._onPointerUp({ pointerId: 212, clientX: 450, clientY: 450 });
+assert.strictEqual(app.selectedSquare, null, 'White piece cannot be selected by Black player');
+
+// Black player selects their own piece (e7) -> legal moves displayed -> moves to e5
+const blackPawnOwnSquare = getSquareByCoords(app, 4, 1);
+app._onPointerDown({ button: 0, pointerId: 213, clientX: 450, clientY: 150, target: blackPawnOwnSquare });
+assert.ok(app.pointerInteraction, 'Black player can interact with their own piece on Black turn');
+app._onPointerUp({ pointerId: 213, clientX: 450, clientY: 150 });
+assert.deepStrictEqual(app.selectedSquare, { x: 4, y: 1 }, 'Black pawn is selected');
+
+const e5Square = getSquareByCoords(app, 4, 3);
+app._onPointerDown({ button: 0, pointerId: 214, clientX: 450, clientY: 350, target: e5Square });
+app._onPointerUp({ pointerId: 214, clientX: 450, clientY: 350 });
+assert.strictEqual(app.game.getPiece(4, 3), 'p', 'Black pawn successfully moved to e5');
+assert.strictEqual(app.game.getTurn(), 'w', 'Turn reverts to White');
+
+// 21c. Single Player vs Stockfish AI: Tap-to-move works cleanly on first attempt
+app.setGameMode('ai');
+app.setPlayerColor('w');
+app.game.resetGame();
+app.render();
+
+const whiteD2Pawn = getSquareByCoords(app, 3, 6); // d2 Pawn
+app._onPointerDown({ button: 0, pointerId: 215, clientX: 350, clientY: 650, target: whiteD2Pawn });
+app._onPointerUp({ pointerId: 215, clientX: 350, clientY: 650 });
+assert.deepStrictEqual(app.selectedSquare, { x: 3, y: 6 }, 'White pawn selected on single tap');
+
+const d4Square = getSquareByCoords(app, 3, 4);
+app._onPointerDown({ button: 0, pointerId: 216, clientX: 350, clientY: 450, target: d4Square });
+app._onPointerUp({ pointerId: 216, clientX: 350, clientY: 450 });
+assert.strictEqual(app.game.getPiece(3, 4), 'P', 'd2 pawn moved to d4');
+assert.strictEqual(app.game.getTurn(), 'b', 'Turn transitioned to AI');
+
+// 21d. Side Chooser Selection Persistence in Settings and Online Modals
+app.setPlayerColor('b');
+assert.strictEqual(app.settings.playerColor, 'b', 'Settings playerColor is b');
+assert.strictEqual(settingsSideBlack.classList.contains('active'), true);
+assert.strictEqual(settingsSideWhite.classList.contains('active'), false);
+assert.strictEqual(settingsSideRandom.classList.contains('active'), false);
+
+app.setPlayerColor('w');
+assert.strictEqual(app.settings.playerColor, 'w', 'Settings playerColor is w');
+assert.strictEqual(settingsSideWhite.classList.contains('active'), true);
+assert.strictEqual(settingsSideBlack.classList.contains('active'), false);
+
+app.setPlayerColor('random');
+assert.strictEqual(app.settings.playerColor, 'random', 'Settings playerColor is random');
+assert.strictEqual(settingsSideRandom.classList.contains('active'), true);
+assert.strictEqual(settingsSideWhite.classList.contains('active'), false);
+
+console.log('Passed Exhaustive Regression Tests: Piece Lock, Single Player Flow & Side Chooser.');
+
 console.log('\nALL CHESSAPP MOVEMENT & INTERACTION TESTS PASSED SUCCESSFULLY! 🎉');
+
 

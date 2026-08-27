@@ -440,4 +440,26 @@ app._onPointerDown({ button: 0, pointerId: 15, clientX: 450, clientY: 150, targe
 app._onPointerUp({ pointerId: 15, clientX: 450, clientY: 150 });
 assert.strictEqual(app.selectedSquare, null, 'Cannot select enemy piece on user turn');
 
+// 14. Test Face-to-Face Tabletop Piece Rotation in PvP Mode
+app.setGameMode('pvp');
+app.setFaceToFace(true);
+app.game.resetGame();
+app.render();
+
+// Verify top pieces (Black on rank 0 and 1) have .rotated-piece class
+const blackKingSq = getSquareByCoords(app, 4, 0); // e8 King
+const blackKingWrapper = blackKingSq.children.find(c => c.classList && c.classList.contains('piece-svg'));
+assert.ok(blackKingWrapper, 'Must have piece-svg wrapper');
+assert.strictEqual(blackKingWrapper.classList.contains('rotated-piece'), true, 'Black pieces on top must be rotated 180deg for opponent in face-to-face mode');
+
+// Verify bottom pieces (White on rank 6 and 7) do NOT have .rotated-piece class
+const whiteKingSq = getSquareByCoords(app, 4, 7); // e1 King
+const whiteKingWrapper = whiteKingSq.children.find(c => c.classList && c.classList.contains('piece-svg'));
+assert.ok(whiteKingWrapper, 'Must have piece-svg wrapper');
+assert.strictEqual(whiteKingWrapper.classList.contains('rotated-piece'), false, 'White pieces on bottom must NOT be rotated');
+
+// Verify top player bar has .face-to-face-top class
+assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), true, 'Top player bar must have face-to-face-top class');
+console.log('Passed Face-to-Face Tabletop Piece Rotation test.');
+
 console.log('\nALL CHESSAPP MOVEMENT & INTERACTION TESTS PASSED SUCCESSFULLY! 🎉');

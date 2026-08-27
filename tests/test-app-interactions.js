@@ -462,4 +462,46 @@ assert.strictEqual(whiteKingWrapper.classList.contains('rotated-piece'), false, 
 assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), true, 'Top player bar must have face-to-face-top class');
 console.log('Passed Face-to-Face Tabletop Piece Rotation test.');
 
+// 15. Test Online Multiplayer Mode P2P Connection & Move Sync
+app.setGameMode('online');
+app.playerColor = 'w';
+app.peerClient = {
+  isConnected: () => true,
+  sendMove: (move) => { app._lastSentPeerMove = move; },
+  sendEmoji: (emoji) => { app._lastSentPeerEmoji = emoji; },
+  opponentName: 'OnlineRival'
+};
+app.game.resetGame();
+app.render();
+
+// Verify online player names
+assert.strictEqual(app.dom.topPlayerName.textContent, 'OnlineRival');
+assert.strictEqual(app.dom.bottomPlayerName.textContent, 'Tú (Local)');
+
+// Execute local White move e2 to e4
+const e2Sq = getSquareByCoords(app, 4, 6);
+app._onPointerDown({ button: 0, pointerId: 16, clientX: 450, clientY: 650, target: e2Sq });
+app._onPointerUp({ pointerId: 16, clientX: 450, clientY: 650 });
+
+const e4Sq = getSquareByCoords(app, 4, 4);
+app._onPointerDown({ button: 0, pointerId: 17, clientX: 450, clientY: 450, target: e4Sq });
+app._onPointerUp({ pointerId: 17, clientX: 450, clientY: 450 });
+
+assert.strictEqual(app.game.getPiece(4, 4), 'P');
+assert.ok(app._lastSentPeerMove, 'Move must be sent over WebRTC');
+assert.strictEqual(app._lastSentPeerMove.san, 'e4');
+
+// Now it is Black's turn. Local user (White) cannot move opponent's pieces
+const e7Sq = getSquareByCoords(app, 4, 1);
+app._onPointerDown({ button: 0, pointerId: 18, clientX: 450, clientY: 150, target: e7Sq });
+app._onPointerUp({ pointerId: 18, clientX: 450, clientY: 150 });
+assert.strictEqual(app.selectedSquare, null, 'User cannot move opponent piece in online mode');
+
+// Simulate incoming remote Black move e7 to e5 ({x:4, y:1} to {x:4, y:3})
+app._onRemoteMove({ from: { x: 4, y: 1 }, to: { x: 4, y: 3 }, promotion: 'Q', san: 'e5' });
+assert.strictEqual(app.game.getPiece(4, 3), 'p', 'Remote move must be applied to board');
+assert.strictEqual(app.game.getTurn(), 'w', 'Turn must revert to local White player');
+console.log('Passed Online Multiplayer Mode P2P Connection & Move Sync test.');
+
 console.log('\nALL CHESSAPP MOVEMENT & INTERACTION TESTS PASSED SUCCESSFULLY! 🎉');
+

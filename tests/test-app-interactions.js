@@ -65,6 +65,11 @@ function createMockElement(tag = 'div') {
       }
       this.parentNode = null;
     },
+    contains(node) {
+      if (this === node) return true;
+      if (!this.children) return false;
+      return this.children.some(c => (c === node || (c.contains && c.contains(node))));
+    },
     closest(selector) {
       if (selector === '.square' && this.classList.contains('square')) return this;
       if (selector === '.modal-backdrop' && this.classList.contains('modal-backdrop')) return this;
@@ -143,26 +148,88 @@ const domElements = {
   'btn-header-flip': createMockElement('button'),
   'btn-header-newgame': createMockElement('button'),
   'btn-header-mute': createMockElement('button'),
-  'btn-header-theme': createMockElement('button')
+  'btn-header-theme': createMockElement('button'),
+  'btn-create-room': createMockElement('button'),
+  'online-reaction-bar': createMockElement('div'),
+  'reaction-pill-toggle': createMockElement('button'),
+  'reaction-emojis-list': createMockElement('div')
 };
 
 domElements.chessboard.id = 'chessboard';
 domElements.chessboard.classList.add('chessboard');
 domElements.chessboard.parentNode = domElements['chessboard-wrapper'];
 
+// Mock Settings Side Chooser Buttons
+const settingsSideWhite = createMockElement('button');
+settingsSideWhite.className = 'settings-side-btn side-chooser-btn active';
+settingsSideWhite.dataset.side = 'w';
+
+const settingsSideBlack = createMockElement('button');
+settingsSideBlack.className = 'settings-side-btn side-chooser-btn';
+settingsSideBlack.dataset.side = 'b';
+
+const settingsSideButtons = [settingsSideWhite, settingsSideBlack];
+
+// Mock Online Side Chooser Buttons
+const onlineSideRandom = createMockElement('button');
+onlineSideRandom.className = 'online-side-btn side-chooser-btn active';
+onlineSideRandom.dataset.onlineSide = 'random';
+
+const onlineSideWhite = createMockElement('button');
+onlineSideWhite.className = 'online-side-btn side-chooser-btn';
+onlineSideWhite.dataset.onlineSide = 'w';
+
+const onlineSideBlack = createMockElement('button');
+onlineSideBlack.className = 'online-side-btn side-chooser-btn';
+onlineSideBlack.dataset.onlineSide = 'b';
+
+const onlineSideButtons = [onlineSideRandom, onlineSideWhite, onlineSideBlack];
+
+// Mock Reaction Emoji Buttons
+const reactionEmojiButtons = ['👏', '🔥', '😮', '♟️', '👑', '💀', '😂', '🤝'].map(emoji => {
+  const btn = createMockElement('button');
+  btn.className = 'reaction-emoji-btn';
+  btn.dataset.emoji = emoji;
+  return btn;
+});
+
 global.document = {
   getElementById: (id) => domElements[id] || null,
   querySelector: (sel) => {
     if (sel === '#chessboard') return domElements.chessboard;
+    if (sel.includes('.online-side-btn.active') || sel.includes('[data-online-side].active')) {
+      return onlineSideButtons.find(b => b.classList.contains('active')) || null;
+    }
+    if (sel.includes('.settings-side-btn.active') || sel.includes('[data-side].active')) {
+      return settingsSideButtons.find(b => b.classList.contains('active')) || null;
+    }
     return null;
   },
   querySelectorAll: (sel) => {
     if (sel.includes('.square')) return domElements.chessboard.children;
+    if (sel.includes('.settings-side-btn') || sel.includes('[data-side]')) {
+      return settingsSideButtons;
+    }
+    if (sel.includes('.online-side-btn') || sel.includes('[data-online-side]')) {
+      return onlineSideButtons;
+    }
+    if (sel.includes('.reaction-emoji-btn')) {
+      return reactionEmojiButtons;
+    }
     return [];
   },
   createElement: (tag) => createMockElement(tag),
   body: createMockElement('body'),
-  addEventListener: () => {},
+  addEventListener: (event, fn) => {
+    global.document._listeners = global.document._listeners || {};
+    global.document._listeners[event] = global.document._listeners[event] || [];
+    global.document._listeners[event].push(fn);
+  },
+  dispatchEvent: (event) => {
+    if (global.document._listeners && global.document._listeners[event.type]) {
+      for (const fn of global.document._listeners[event.type]) fn(event);
+    }
+  },
   elementFromPoint: (x, y) => {
     const col = Math.floor(x / 100);
     const row = Math.floor(y / 100);
@@ -428,17 +495,49 @@ app.executeMove(app.pendingPromotionMove.from, app.pendingPromotionMove.to, 'Q')
 assert.strictEqual(app.game.getPiece(4, 0), 'Q', 'Pawn must be promoted to Queen');
 console.log('Passed Pawn Promotion flow test.');
 
-// 13. Test AI Mode Turn Restrictions
+// 13. Test AI Mode Turn Restrictions & Opponent Piece Drag/Click Prevention
 app.setGameMode('ai');
 app.setPlayerColor('w');
 app.game.resetGame();
 app.render();
 
-// When it is White's turn, clicking Black pieces should be ignored
+// When it is White's turn, clicking Black pieces when no piece selected should be ignored completely
 const blackPawnOnWhiteTurn = getSquareByCoords(app, 4, 1); // e7 Black pawn
 app._onPointerDown({ button: 0, pointerId: 15, clientX: 450, clientY: 150, target: blackPawnOnWhiteTurn });
+assert.strictEqual(app.pointerInteraction, null, 'pointerInteraction must NOT be created when clicking enemy piece without selection');
 app._onPointerUp({ pointerId: 15, clientX: 450, clientY: 150 });
 assert.strictEqual(app.selectedSquare, null, 'Cannot select enemy piece on user turn');
+
+// Dragging enemy piece on user turn should not create ghost or initiate drag
+app._onPointerDown({ button: 0, pointerId: 151, clientX: 450, clientY: 150, target: blackPawnOnWhiteTurn, pointerType: 'touch' });
+assert.strictEqual(app.pointerInteraction, null, 'No pointerInteraction on enemy piece drag start');
+app._onPointerMove({ pointerId: 151, clientX: 450, clientY: 250 });
+app._onPointerUp({ pointerId: 151, clientX: 450, clientY: 250 });
+assert.strictEqual(app.selectedSquare, null);
+assert.strictEqual(app.game.getPiece(4, 1), 'p', 'Black pawn must remain on e7');
+
+// User moves White e2 to e4 -> now turn is Black (AI's turn)
+app.executeMove({ x: 4, y: 6 }, { x: 4, y: 4 });
+assert.strictEqual(app.game.getTurn(), 'b', 'Turn should now be Black (AI turn)');
+
+// On AI's turn, human cannot interact with White pieces
+const whitePawnOnAITurn = getSquareByCoords(app, 4, 4);
+app._onPointerDown({ button: 0, pointerId: 152, clientX: 450, clientY: 450, target: whitePawnOnAITurn });
+assert.strictEqual(app.pointerInteraction, null, 'Cannot start pointer interaction on White piece during AI turn');
+app._onPointerUp({ pointerId: 152, clientX: 450, clientY: 450 });
+assert.strictEqual(app.selectedSquare, null);
+
+// On AI's turn, human cannot interact with or drag Black pieces
+app._onPointerDown({ button: 0, pointerId: 153, clientX: 450, clientY: 150, target: blackPawnOnWhiteTurn, pointerType: 'touch' });
+assert.strictEqual(app.pointerInteraction, null, 'Cannot start pointer interaction on Black piece during AI turn');
+app._onPointerMove({ pointerId: 153, clientX: 450, clientY: 250 });
+app._onPointerUp({ pointerId: 153, clientX: 450, clientY: 250 });
+assert.strictEqual(app.selectedSquare, null);
+
+// Calling handleSquareSelect during AI turn should be rejected
+app.handleSquareSelect(4, 1);
+assert.strictEqual(app.selectedSquare, null, 'handleSquareSelect must return early during AI turn');
+console.log('Passed AI Mode Turn Restrictions & Opponent Piece Drag/Click Prevention test.');
 
 // 14. Test Face-to-Face Tabletop Piece Rotation in PvP Mode
 app.setGameMode('pvp');
@@ -494,6 +593,7 @@ assert.strictEqual(app._lastSentPeerMove.san, 'e4');
 // Now it is Black's turn. Local user (White) cannot move opponent's pieces
 const e7Sq = getSquareByCoords(app, 4, 1);
 app._onPointerDown({ button: 0, pointerId: 18, clientX: 450, clientY: 150, target: e7Sq });
+assert.strictEqual(app.pointerInteraction, null, 'No pointer interaction allowed during rival turn');
 app._onPointerUp({ pointerId: 18, clientX: 450, clientY: 150 });
 assert.strictEqual(app.selectedSquare, null, 'User cannot move opponent piece in online mode');
 
@@ -502,6 +602,172 @@ app._onRemoteMove({ from: { x: 4, y: 1 }, to: { x: 4, y: 3 }, promotion: 'Q', sa
 assert.strictEqual(app.game.getPiece(4, 3), 'p', 'Remote move must be applied to board');
 assert.strictEqual(app.game.getTurn(), 'w', 'Turn must revert to local White player');
 console.log('Passed Online Multiplayer Mode P2P Connection & Move Sync test.');
+
+// 16. Test Online Mode Disconnected & Rival Turn Pointer / Toast Guard
+app.setGameMode('online');
+app.playerColor = 'w';
+let lastToast = null;
+const originalShowToast = app.showToast.bind(app);
+app.showToast = (msg, type) => {
+  lastToast = { msg, type };
+  originalShowToast(msg, type);
+};
+
+// 16a. Disconnected check
+app.peerClient = { isConnected: () => false };
+app._onPointerDown({ button: 0, pointerId: 19, clientX: 450, clientY: 650, target: e2Sq });
+assert.strictEqual(app.pointerInteraction, null, 'Must reject pointer when disconnected');
+assert.strictEqual(lastToast.msg, 'Conéctate a una sala online para jugar.');
+
+app.handleSquareSelect(4, 6);
+assert.strictEqual(lastToast.msg, 'Conéctate a una sala online para jugar.');
+assert.strictEqual(app.selectedSquare, null);
+
+// 16b. Connected but rival turn
+app.peerClient = { isConnected: () => true, sendMove: () => {} };
+app.game.resetGame();
+app.executeMove({ x: 4, y: 6 }, { x: 4, y: 4 }); // White moves, turn becomes Black
+assert.strictEqual(app.game.getTurn(), 'b');
+
+lastToast = null;
+app._onPointerDown({ button: 0, pointerId: 20, clientX: 450, clientY: 150, target: e7Sq });
+assert.strictEqual(app.pointerInteraction, null, 'Must reject pointer on rival turn');
+assert.strictEqual(lastToast.msg, 'Es el turno de tu rival.');
+
+lastToast = null;
+app.handleSquareSelect(4, 1);
+assert.strictEqual(lastToast.msg, 'Es el turno de tu rival.');
+assert.strictEqual(app.selectedSquare, null);
+
+// Restore toast method
+app.showToast = originalShowToast;
+console.log('Passed Online Mode Disconnected & Rival Turn Pointer / Toast Guard test.');
+
+// 17. Test PvP Mode Turn Enforcement (No selecting/dragging opponent pieces)
+app.setGameMode('pvp');
+app.game.resetGame();
+app.render();
+assert.strictEqual(app.game.getTurn(), 'w');
+
+// White's turn: clicking Black piece e7 when no piece is selected should be ignored
+app._onPointerDown({ button: 0, pointerId: 21, clientX: 450, clientY: 150, target: e7Sq });
+assert.strictEqual(app.pointerInteraction, null, 'PvP White turn: clicking Black piece must not create pointerInteraction');
+app._onPointerUp({ pointerId: 21, clientX: 450, clientY: 150 });
+assert.strictEqual(app.selectedSquare, null, 'PvP White turn: Black piece not selected');
+
+// White makes move e2 to e4
+app.executeMove({ x: 4, y: 6 }, { x: 4, y: 4 });
+assert.strictEqual(app.game.getTurn(), 'b');
+
+// Black's turn: clicking White piece e4 when no piece is selected should be ignored
+app._onPointerDown({ button: 0, pointerId: 22, clientX: 450, clientY: 450, target: e4Sq });
+assert.strictEqual(app.pointerInteraction, null, 'PvP Black turn: clicking White piece must not create pointerInteraction');
+app._onPointerUp({ pointerId: 22, clientX: 450, clientY: 450 });
+assert.strictEqual(app.selectedSquare, null, 'PvP Black turn: White piece not selected');
+console.log('Passed PvP Mode Turn Enforcement test.');
+
+// 18. Test Side Chooser Button Isolation & Online / Settings Selection
+// 18a. Settings Modal Side Chooser: Play As White / Black
+app.setPlayerColor('w');
+assert.strictEqual(app.playerColor, 'w');
+assert.strictEqual(settingsSideWhite.classList.contains('active'), true, 'Settings White must be active');
+assert.strictEqual(settingsSideBlack.classList.contains('active'), false, 'Settings Black must NOT be active');
+
+// Click Black in Settings Modal
+settingsSideBlack.dispatchEvent({ type: 'click' });
+assert.strictEqual(app.playerColor, 'b', 'Clicking Black settings button sets playerColor to b');
+assert.strictEqual(app.boardFlipped, true, 'Board flipped when playing as Black');
+assert.strictEqual(settingsSideBlack.classList.contains('active'), true, 'Settings Black is now active');
+assert.strictEqual(settingsSideWhite.classList.contains('active'), false, 'Settings White is now inactive');
+
+// Click White in Settings Modal
+settingsSideWhite.dispatchEvent({ type: 'click' });
+assert.strictEqual(app.playerColor, 'w', 'Clicking White settings button sets playerColor to w');
+assert.strictEqual(app.boardFlipped, false, 'Board not flipped when playing as White');
+assert.strictEqual(settingsSideWhite.classList.contains('active'), true, 'Settings White is now active');
+assert.strictEqual(settingsSideBlack.classList.contains('active'), false, 'Settings Black is now inactive');
+
+// 18b. Online Modal Side Chooser: Random / White / Black
+// Default state: Random is active
+assert.strictEqual(onlineSideRandom.classList.contains('active'), true, 'Online random active initially');
+assert.strictEqual(onlineSideWhite.classList.contains('active'), false);
+assert.strictEqual(onlineSideBlack.classList.contains('active'), false);
+
+let createdRoomSide = null;
+app.createOnlineRoom = (side) => { createdRoomSide = side; };
+
+// Click Online White button
+onlineSideWhite.dispatchEvent({ type: 'click' });
+assert.strictEqual(onlineSideWhite.classList.contains('active'), true, 'Online White button is active');
+assert.strictEqual(onlineSideRandom.classList.contains('active'), false, 'Online Random button is inactive');
+assert.strictEqual(onlineSideBlack.classList.contains('active'), false, 'Online Black button is inactive');
+assert.strictEqual(app.playerColor, 'w', 'Online selection must not trigger setPlayerColor(undefined)');
+
+// Create room with White selected
+domElements['btn-create-room'].dispatchEvent({ type: 'click' });
+assert.strictEqual(createdRoomSide, 'w', 'Create room should pass selected side "w"');
+
+// Click Online Black button
+onlineSideBlack.dispatchEvent({ type: 'click' });
+assert.strictEqual(onlineSideBlack.classList.contains('active'), true, 'Online Black button is active');
+assert.strictEqual(onlineSideWhite.classList.contains('active'), false);
+assert.strictEqual(onlineSideRandom.classList.contains('active'), false);
+assert.strictEqual(app.playerColor, 'w', 'Online selection must not trigger setPlayerColor');
+
+// Create room with Black selected
+domElements['btn-create-room'].dispatchEvent({ type: 'click' });
+assert.strictEqual(createdRoomSide, 'b', 'Create room should pass selected side "b"');
+
+// Click Online Random button
+onlineSideRandom.dispatchEvent({ type: 'click' });
+assert.strictEqual(onlineSideRandom.classList.contains('active'), true, 'Online Random button is active');
+assert.strictEqual(onlineSideWhite.classList.contains('active'), false);
+assert.strictEqual(onlineSideBlack.classList.contains('active'), false);
+
+// Create room with Random selected
+domElements['btn-create-room'].dispatchEvent({ type: 'click' });
+assert.strictEqual(createdRoomSide, 'random', 'Create room should pass selected side "random"');
+
+// 18c. Cross-Modal Isolation: Sync Settings does NOT alter Online side buttons
+app._syncSettingsFormControls();
+assert.strictEqual(onlineSideRandom.classList.contains('active'), true, 'Sync settings must not clear online side button active state');
+assert.strictEqual(settingsSideWhite.classList.contains('active'), true, 'Settings White remains active');
+assert.strictEqual(settingsSideBlack.classList.contains('active'), false);
+
+console.log('Passed Side Chooser Button Isolation & Online / Settings Selection test.');
+
+// 19. Test Expandable Emoji Reaction Pill & Interactive Broadcasts
+app.setGameMode('ai');
+assert.strictEqual(app.dom.onlineReactionBar.classList.contains('visible'), false, 'Reaction bar hidden in AI mode');
+
+app.setGameMode('online');
+app.peerClient = {
+  isConnected: () => true,
+  sendEmoji: (emoji) => { app._lastSentPeerEmoji = emoji; }
+};
+assert.strictEqual(app.dom.onlineReactionBar.classList.contains('visible'), true, 'Reaction bar visible in Online mode');
+assert.strictEqual(app.dom.onlineReactionBar.classList.contains('expanded'), false, 'Reaction bar initially collapsed');
+
+// Toggle pill expanded state
+domElements['reaction-pill-toggle'].dispatchEvent({ type: 'click', stopPropagation: () => {} });
+assert.strictEqual(app.dom.onlineReactionBar.classList.contains('expanded'), true, 'Clicking pill toggle expands the emoji bar');
+
+// Click an emoji (🔥)
+app._lastSentPeerEmoji = null;
+const fireEmojiBtn = reactionEmojiButtons.find(b => b.dataset.emoji === '🔥');
+fireEmojiBtn.dispatchEvent({ type: 'click', stopPropagation: () => {} });
+assert.strictEqual(app._lastSentPeerEmoji, '🔥', 'Emoji 🔥 should be broadcasted over WebRTC');
+assert.strictEqual(fireEmojiBtn.classList.contains('clicked'), true, 'Clicked emoji button should have clicked animation class');
+
+// Click outside to collapse
+const outsideElem = createMockElement('div');
+global.document.dispatchEvent({ type: 'click', target: outsideElem });
+assert.strictEqual(app.dom.onlineReactionBar.classList.contains('expanded'), false, 'Clicking outside collapses the reaction bar');
+
+// Switch mode away from online
+app.setGameMode('pvp');
+assert.strictEqual(app.dom.onlineReactionBar.classList.contains('visible'), false, 'Reaction bar hidden in PvP mode');
+console.log('Passed Expandable Emoji Reaction Pill & Peer Broadcast test.');
 
 console.log('\nALL CHESSAPP MOVEMENT & INTERACTION TESTS PASSED SUCCESSFULLY! 🎉');
 

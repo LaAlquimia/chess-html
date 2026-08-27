@@ -1,116 +1,122 @@
-# ♟️ Chess HTML (Ultra Responsive & Modernized)
+# ♟️ AlquiChess (Ultra Responsive & Modern Web Chess)
 
-A modern, high-performance HTML5 chess web application powered by **Stockfish AI** and local **2-Player Pass & Play (PvP)** multiplayer. Designed mobile-first with **100% full-screen width** on vertical smartphones, high-resolution vector SVG piece themes, procedural Web Audio sound synthesis, and real-time evaluation.
+**AlquiChess** es una plataforma moderna, fluida y de alto rendimiento para jugar al ajedrez en la web. Cuenta con multijugador online **Peer-to-Peer (WebRTC)** sin servidores intermedios, motor de **IA Stockfish**, modo **Cara a Cara / Mesa** para tablets y móviles, sintetizador de audio procedural táctil y múltiples temas visuales vectoriales.
 
-No heavy frameworks, zero external dependencies – just pure, blazing-fast web standards.
+Diseñado *mobile-first* con **100% de ancho de pantalla** en smartphones verticales, sin dependencias externas pesadas y con los más altos estándares web modernos.
+
+---
 
 ## 🚀 Juega Ahora / Live Demo
 
-- 🤖 **Jugar contra Stockfish AI:** **[https://laalquimia.github.io/chess/](https://laalquimia.github.io/chess/)**
-- ⚔️ **Modo 2 Jugadores (Pass & Play):** **[https://laalquimia.github.io/chess/pvp.html](https://laalquimia.github.io/chess/pvp.html)**
+- 🌐 **AlquiChess Principal (Online P2P, IA Stockfish & Modo Mesa):** **[https://laalquimia.github.io/chess/](https://laalquimia.github.io/chess/)**
+- ⚔️ **Modo 2 Jugadores Local / Pass & Play:** **[https://laalquimia.github.io/chess/pvp.html](https://laalquimia.github.io/chess/pvp.html)**
 
 ---
 
-## 🌟 Key Features
+## 🌟 Modos de Juego
 
-### 📱 100% Full-Screen Mobile Responsive (Portrait & Landscape)
-- **Mobile Portrait (≤ 768px):** Board spans **100% viewport width (`100vw`)** edge-to-edge with zero dead space or horizontal scrolling. Includes tactile touch controls, mobile player cards, captured piece trays, and a bottom floating dock.
-- **Desktop & Tablet (> 768px):** Refined 2-column layout with centered board (up to 600px), glassmorphism side panel, live evaluation meter, auto-scrolling move history log with SAN notation, and game action controls.
+1. **🌐 Multijugador Online P2P (WebRTC & PeerJS):**
+   - Crea salas privadas con códigos de 4 letras (ej. `K7A9`) o comparte el enlace directo / código QR.
+   - Sincronización de jugadas instantánea (< 20ms de latencia) mediante RTCDataChannel.
+   - Ofertas de tablas (🤝), solicitudes de revancha y abandono de partida.
+   - Barra flotante de reacciones con emojis en vivo (👏, 🔥, 😮, ♟️, 👑, 💀, 😂, 🤝).
 
-### 🎨 Customizable Board & Piece Themes
-- **Board Themes:**
-  - 🌿 **Green:** Classic Chess.com / Lichess style
-  - 🪵 **Wood:** Warm Walnut & Maple woodgrain
-  - 🌑 **Dark:** Luxury Charcoal & Slate dark mode
-  - 🌊 **Blue:** Oceanic Slate Blue
-  - ⚡ **Cyber:** Neon Cyberpunk with glow effects
-  - 🪸 **Coral:** Warm Coral & Sand
-- **Piece Sets (Crisp Vector SVG):**
-  - **Standard (Cburnett):** Crisp international standard vector icons
-  - **Modern:** Sleek geometric minimalist pieces
-  - **Wood:** Stylized warm timber pieces
-  - **Neon:** Cyberpunk glowing vector outlines
+2. **🤖 Partida contra Stockfish AI:**
+   - 6 niveles de dificultad (*Principiante, Fácil, Medio, Difícil, Experto, Máximo*).
+   - Barra de evaluación posicional en tiempo real.
+   - Cálculo en segundo plano vía Web Worker para no congelar la interfaz.
 
-### 🔊 Procedural Web Audio API Sound Engine
-Zero external audio files – 100% offline procedural synthesis with zero latency:
-- **Tactile Wood:** Realistic wood piece thuds, clicks, and captures
-- **Acoustic Modern:** Soft harmonic tones and crisp snaps
-- **Retro 8-Bit Arcade:** Chiptune square-wave arpeggios and victory fanfares
-- **Sci-Fi Synth:** Futuristic FM lasers and plasma impacts
-- Master volume slider and instant mute toggle with sound test preview.
-
-### 🧠 Stockfish AI Engine & Game Rules
-- **Stockfish AI Web Worker:** 6 difficulty levels (*Beginner, Easy, Medium, Hard, Expert, Maximum*) with real-time centipawn evaluation bar.
-- **Complete Rules:** Castling (Kingside & Queenside), En Passant, Pawn Promotion dialog (Queen, Rook, Bishop, Knight), Check/Checkmate detection, Stalemate, 50-move rule, 3-fold repetition, and Insufficient Material draw.
-- **Visual Move Assists:** Interactive legal move dots, capture target rings, King check glow pulse, and last-move square highlights.
-- **Undo & Flip:** Multi-ply move undo (2-ply against AI, 1-ply in PvP) and board flip.
-- **Local Persistence:** Automatically saves your favorite theme, piece style, sound pack, difficulty, and volume in `localStorage`.
+3. **👥 Modo Mesa / Cara a Cara (Tabletop):**
+   - Ideal para colocar el móvil o tablet sobre la mesa entre dos personas.
+   - Rota automáticamente las fichas del rival 180° para que ambos jugadores las vean en su orientación correcta.
 
 ---
 
-## 🕹️ Game Modes
+## 🎨 Personalización y Temas
 
-1. **🤖 Play vs Stockfish AI:** Open [`index.html`](./index.html) or switch from the in-game menu.
-2. **⚔️ 2-Player Pass & Play:** Open [`pvp.html`](./pvp.html) or toggle game mode in the Settings menu.
+- **Estilos de Tablero:**
+  - 🌿 **Verde:** Estilo clásico internacional (Chess.com / Lichess)
+  - 🪵 **Madera:** Tonos cálidos de nogal y arce
+  - 🌑 **Oscuro:** Modo oscuro elegante en carbón y pizarra
+  - 🌊 **Azul:** Pizarra oceánica suave
+  - ⚡ **Cyber:** Neón cyberpunk con iluminación brillante
+  - 🪸 **Coral:** Tonos cálidos de coral y arena
+
+- **Sets de Piezas Vectoriales (SVG):**
+  - **Standard (Staunton / Cburnett):** Vectores nítidos con Rey estilizado y proporciones nobles
+  - **Modern:** Siluetas geométricas minimalistas
+  - **Wood:** Piezas texturizadas en madera cálida
+  - **Neon:** Trazos luminosos futuristas
+
+- **Sintetizador de Sonido Procedural (Web Audio API):**
+  - 100% offline sin descargar archivos de audio externos.
+  - Efectos para movimientos, capturas, jaque, enroque, coronación y fin de partida.
+  - 4 paquetes acústicos: *Madera Realista, Moderno Acústico, Arcade 8-Bit y Sintetizador Sci-Fi*.
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## ⌨️ Atajos de Teclado
 
-| Key | Action |
+| Tecla | Acción |
 | :--- | :--- |
-| <kbd>F</kbd> | Flip Board orientation (White / Black view) |
-| <kbd>Z</kbd> | Undo last move |
-| <kbd>R</kbd> | Restart / New Game |
-| <kbd>M</kbd> | Toggle Mute |
-| <kbd>S</kbd> | Open Settings Drawer |
-| <kbd>Esc</kbd> | Close open modals |
+| <kbd>F</kbd> | Girar orientación del tablero (Vista Blancas / Negras) |
+| <kbd>Z</kbd> | Deshacer última jugada (Undo) |
+| <kbd>R</kbd> | Reiniciar / Nueva partida |
+| <kbd>M</kbd> | Silenciar / Activar sonido |
+| <kbd>S</kbd> | Abrir panel de Ajustes |
+| <kbd>Esc</kbd> | Cerrar ventanas modales abiertas |
 
 ---
 
-## 📂 Project Architecture
+## 📂 Arquitectura del Proyecto
 
 ```text
 chess-html/
-├── index.html              # Main application entry point (AI & PvP modes)
-├── pvp.html                # Dedicated Pass & Play multiplayer view
+├── index.html              # Entrada principal de AlquiChess (Online, IA y Modo Mesa)
+├── pvp.html                # Vista directa para 2 Jugadores Local
 ├── css/
-│   └── style.css           # Mobile-first responsive CSS, themes, & modals
+│   └── style.css           # Estilos responsivos mobile-first, temas y modales
 ├── js/
-│   ├── app.js              # Master UI controller, interactions, & persistence
-│   ├── audio.js            # Procedural WebAudio sound engine (4 themes)
-│   ├── chess-core.js       # Complete chess rules engine (FEN, SAN, validation)
-│   ├── pieces.js           # Scalable Vector SVG piece sets (4 styles)
-│   └── stockfish-bridge.js # Web Worker bridge for Stockfish engine
+│   ├── app.js              # Controlador maestro de UI, eventos y estados
+│   ├── peer-chess.js       # Cliente WebRTC P2P (PeerJS, salas y protocolo)
+│   ├── audio.js            # Motor de sonido procedural con Web Audio API
+│   ├── chess-core.js       # Motor de reglas de ajedrez (FEN, SAN, validaciones)
+│   ├── pieces.js           # Vectores SVG escalables de piezas
+│   ├── stockfish-bridge.js # Puente Web Worker para motor Stockfish
+│   ├── peerjs.min.js       # Biblioteca PeerJS WebRTC
+│   └── qrcode.min.js       # Generador de códigos QR para salas
 ├── tests/
-│   ├── test-chess-core.js  # Automated unit tests for rules engine
-│   └── test-stockfish-bridge.js # Automated tests for AI worker bridge
-├── stockfish.js            # Stockfish chess engine Web Worker
-├── stockfish.wasm          # Stockfish WebAssembly binary
-└── stockfish.wasm.js       # WASM loader
+│   ├── test-chess-core.js  # Pruebas unitarias del motor de reglas
+│   ├── test-stockfish-bridge.js # Pruebas del puente de IA
+│   ├── test-app-interactions.js # Pruebas de movimiento e interacciones
+│   ├── test-pieces.js      # Pruebas de renderizado y silueta SVG
+│   └── test-peer-protocol.js # Pruebas del protocolo WebRTC P2P
+├── stockfish.js            # Web Worker del motor Stockfish
+├── stockfish.wasm          # Binario WebAssembly de Stockfish
+└── stockfish.wasm.js       # Cargador WASM
 ```
 
 ---
 
-## 🧪 Testing
+## 🧪 Pruebas Unitarias
 
-Run the automated test suite using Node.js:
+Para ejecutar la suite completa de pruebas automatizadas:
 
 ```bash
-node tests/test-chess-core.js
-node tests/test-stockfish-bridge.js
+node tests/test-chess-core.js && node tests/test-stockfish-bridge.js && node tests/test-app-interactions.js && node tests/test-pieces.js && node tests/test-peer-protocol.js
 ```
 
 ---
 
-## 📦 License
+## 📦 Licencia
 
-This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
-The embedded Stockfish engine is also GPL-licensed.  
-You are free to use, modify, and redistribute under the same terms.
+Este proyecto está licenciado bajo la **GNU General Public License v3.0 (GPL-3.0)**.  
+El motor Stockfish integrado también posee licencia GPL.  
+Eres libre de usar, modificar y redistribuir bajo los mismos términos.
 
 ---
 
-## ❤️ Credits
-Crafted with 🧠 + ♟️ + [Stockfish Engine](https://stockfishchess.org) & [La Alquimia](https://github.com/LaAlquimia).
+## ❤️ Créditos
+
+Desarrollado con 🧠 + ♟️ por **[La Alquimia](https://laalquimia.github.io)** & [Stockfish Engine](https://stockfishchess.org).
   

@@ -66,6 +66,58 @@ client._setStatus('waiting', 'Waiting for peer');
 assert.ok(receivedStatus, 'Status event must be received');
 assert.strictEqual(receivedStatus.status, 'waiting');
 
-console.log('Passed Event Dispatching & Message Handling tests.');
+// 6. Complete 3-Way Handshake Simulation (Host <-> Guest)
+const hostClient = new PeerChessClient({ playerName: 'Alice' });
+hostClient.isHost = true;
+hostClient.preferredColor = 'w';
+hostClient.roomCode = 'TEST';
+let hostSentMessages = [];
+hostClient.conn = {
+  open: true,
+  send: (msg) => hostSentMessages.push(msg)
+};
+
+const guestClient = new PeerChessClient({ playerName: 'Bob' });
+guestClient.isHost = false;
+guestClient.roomCode = 'TEST';
+let guestSentMessages = [];
+guestClient.conn = {
+  open: true,
+  send: (msg) => guestSentMessages.push(msg)
+};
+
+let hostConnectedData = null;
+let guestConnectedData = null;
+hostClient.on('connected', (d) => { hostConnectedData = d; });
+guestClient.on('connected', (d) => { guestConnectedData = d; });
+
+// Host receives incoming connection -> assigns colors and sends WELCOME
+hostClient.assignedColor = 'w';
+hostClient.opponentColor = 'b';
+hostClient._send({
+  type: 'WELCOME',
+  payload: { hostColor: 'w', guestColor: 'b', hostName: 'Alice' }
+});
+hostClient._onConnected();
+assert.strictEqual(hostClient.status, 'connected');
+assert.strictEqual(hostSentMessages.length, 1);
+assert.strictEqual(hostSentMessages[0].type, 'WELCOME');
+
+// Guest receives WELCOME from Host
+guestClient._handleIncomingMessage(hostSentMessages[0]);
+assert.strictEqual(guestClient.status, 'connected');
+assert.strictEqual(guestClient.assignedColor, 'b');
+assert.strictEqual(guestClient.opponentColor, 'w');
+assert.strictEqual(guestClient.opponentName, 'Alice');
+assert.strictEqual(guestSentMessages.length, 1);
+assert.strictEqual(guestSentMessages[0].type, 'WELCOME_ACK');
+
+// Host receives WELCOME_ACK from Guest
+hostClient._handleIncomingMessage(guestSentMessages[0]);
+assert.strictEqual(hostClient.opponentName, 'Bob');
+assert.strictEqual(hostConnectedData.assignedColor, 'w');
+assert.strictEqual(guestConnectedData.assignedColor, 'b');
+
+console.log('Passed Complete 3-Way Handshake Simulation test.');
 
 console.log('\nALL PEER CHESS PROTOCOL TESTS PASSED SUCCESSFULLY! 🎉');

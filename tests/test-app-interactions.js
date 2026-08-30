@@ -17,12 +17,20 @@ function createMockElement(tag = 'div') {
     dataset: {},
     classList: {
       _classes: new Set(),
-      add(c) {
-        if (typeof c === 'string') {
-          c.split(' ').forEach(item => { if (item) this._classes.add(item); });
-        }
+      add(...classes) {
+        classes.forEach(c => {
+          if (typeof c === 'string') {
+            c.split(' ').forEach(item => { if (item) this._classes.add(item); });
+          }
+        });
       },
-      remove(c) { this._classes.delete(c); },
+      remove(...classes) {
+        classes.forEach(c => {
+          if (typeof c === 'string') {
+            c.split(' ').forEach(item => { if (item) this._classes.delete(item); });
+          }
+        });
+      },
       contains(c) { return this._classes.has(c); },
       toggle(c, force) {
         if (force === undefined) {
@@ -149,6 +157,11 @@ const domElements = {
   'btn-header-newgame': createMockElement('button'),
   'btn-header-mute': createMockElement('button'),
   'btn-header-theme': createMockElement('button'),
+  'btn-header-tabletop': createMockElement('button'),
+  'btn-header-hint': createMockElement('button'),
+  'setting-face-to-face': createMockElement('input'),
+  'setting-assisted-mode': createMockElement('input'),
+  'setting-game-mode': createMockElement('select'),
   'btn-create-room': createMockElement('button'),
   'online-reaction-bar': createMockElement('div'),
   'reaction-pill-toggle': createMockElement('button'),
@@ -160,12 +173,14 @@ const domElements = {
   'btn-dock-newgame': createMockElement('button'),
   'btn-dock-flip': createMockElement('button'),
   'btn-dock-settings': createMockElement('button'),
+  'btn-dock-hint': createMockElement('button'),
   'btn-sidebar-draw': createMockElement('button'),
   'btn-sidebar-resign': createMockElement('button'),
   'btn-sidebar-newgame': createMockElement('button'),
   'btn-sidebar-undo': createMockElement('button'),
   'btn-sidebar-flip': createMockElement('button'),
   'btn-sidebar-settings': createMockElement('button'),
+  'btn-sidebar-hint': createMockElement('button'),
   'gameover-title': createMockElement('h2'),
   'gameover-reason': createMockElement('p'),
   'gameover-icon': createMockElement('div')
@@ -550,7 +565,21 @@ app.handleSquareSelect(4, 1);
 assert.strictEqual(app.selectedSquare, null, 'handleSquareSelect must return early during AI turn');
 console.log('Passed AI Mode Turn Restrictions & Opponent Piece Drag/Click Prevention test.');
 
-// 14. Test Face-to-Face Tabletop Piece Rotation in PvP Mode
+// 14. Test Face-to-Face Tabletop Piece Rotation in PvP vs AI vs Online Modes
+// Case A: AI mode (even with settings.faceToFace === true, rotation must be disabled)
+app.setGameMode('ai');
+app.settings.faceToFace = true;
+app.game.resetGame();
+app.render();
+
+const aiBlackKingSq = getSquareByCoords(app, 4, 0); // e8 King
+const aiBlackKingWrapper = aiBlackKingSq.children.find(c => c.classList && c.classList.contains('piece-svg'));
+assert.ok(aiBlackKingWrapper, 'Must have piece-svg wrapper');
+assert.strictEqual(aiBlackKingWrapper.classList.contains('rotated-piece'), false, 'In AI mode, top pieces must NEVER be rotated 180deg');
+assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), false, 'In AI mode, top player bar must NEVER have face-to-face-top class');
+assert.strictEqual(app.dom.btnHeaderTabletop.classList.contains('active'), false, 'In AI mode, tabletop header button must NOT have active class');
+
+// Case B: PvP mode with faceToFace === true (rotation must be active)
 app.setGameMode('pvp');
 app.setFaceToFace(true);
 app.game.resetGame();
@@ -560,7 +589,7 @@ app.render();
 const blackKingSq = getSquareByCoords(app, 4, 0); // e8 King
 const blackKingWrapper = blackKingSq.children.find(c => c.classList && c.classList.contains('piece-svg'));
 assert.ok(blackKingWrapper, 'Must have piece-svg wrapper');
-assert.strictEqual(blackKingWrapper.classList.contains('rotated-piece'), true, 'Black pieces on top must be rotated 180deg for opponent in face-to-face mode');
+assert.strictEqual(blackKingWrapper.classList.contains('rotated-piece'), true, 'Black pieces on top must be rotated 180deg for opponent in PvP face-to-face mode');
 
 // Verify bottom pieces (White on rank 6 and 7) do NOT have .rotated-piece class
 const whiteKingSq = getSquareByCoords(app, 4, 7); // e1 King
@@ -568,8 +597,21 @@ const whiteKingWrapper = whiteKingSq.children.find(c => c.classList && c.classLi
 assert.ok(whiteKingWrapper, 'Must have piece-svg wrapper');
 assert.strictEqual(whiteKingWrapper.classList.contains('rotated-piece'), false, 'White pieces on bottom must NOT be rotated');
 
-// Verify top player bar has .face-to-face-top class
-assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), true, 'Top player bar must have face-to-face-top class');
+// Verify top player bar has .face-to-face-top class and header button is active
+assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), true, 'Top player bar must have face-to-face-top class in PvP face-to-face mode');
+assert.strictEqual(app.dom.btnHeaderTabletop.classList.contains('active'), true, 'Tabletop button must be active in PvP face-to-face mode');
+
+// Case C: PvP mode with faceToFace === false (rotation must be disabled)
+app.setFaceToFace(false);
+const pvpNormalKingSq = getSquareByCoords(app, 4, 0);
+const pvpNormalKingWrapper = pvpNormalKingSq.children.find(c => c.classList && c.classList.contains('piece-svg'));
+assert.strictEqual(pvpNormalKingWrapper.classList.contains('rotated-piece'), false, 'When faceToFace is disabled in PvP, top pieces must NOT be rotated');
+assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), false, 'When faceToFace is disabled in PvP, top player bar must NOT have face-to-face-top class');
+assert.strictEqual(app.dom.btnHeaderTabletop.classList.contains('active'), false, 'When faceToFace is disabled in PvP, tabletop button must NOT be active');
+
+// Restore faceToFace for PvP
+app.setFaceToFace(true);
+
 console.log('Passed Face-to-Face Tabletop Piece Rotation test.');
 
 // 15. Test Online Multiplayer Mode P2P Connection & Move Sync
@@ -584,9 +626,14 @@ app.peerClient = {
 app.game.resetGame();
 app.render();
 
-// Verify online player names
+// Verify online player names and orientation (must NEVER be rotated)
 assert.strictEqual(app.dom.topPlayerName.textContent, 'OnlineRival');
 assert.strictEqual(app.dom.bottomPlayerName.textContent, 'Tú (Local)');
+assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), false, 'In Online mode, top player bar must NOT have face-to-face-top class');
+assert.strictEqual(app.dom.btnHeaderTabletop.classList.contains('active'), false, 'In Online mode, tabletop button must NOT be active');
+const onlineBlackKingSq = getSquareByCoords(app, 4, 0);
+const onlineBlackKingWrapper = onlineBlackKingSq.children.find(c => c.classList && c.classList.contains('piece-svg'));
+assert.strictEqual(onlineBlackKingWrapper.classList.contains('rotated-piece'), false, 'In Online mode, top pieces must NOT be rotated');
 
 // Execute local White move e2 to e4
 const e2Sq = getSquareByCoords(app, 4, 6);
@@ -989,6 +1036,116 @@ app.setPlayerColor('random');
 assert.strictEqual(app.settings.playerColor, 'random', 'Settings playerColor is random');
 assert.strictEqual(settingsSideRandom.classList.contains('active'), true);
 assert.strictEqual(settingsSideWhite.classList.contains('active'), false);
+
+// 22. Assisted Mode (Modo Asistido - Stockfish IA Suggestions)
+console.log('\nTesting Assisted Mode (Modo Asistido & Stockfish Hints)...');
+
+// 22a. Default Configuration: assistedMode is false by default
+const freshApp = new ChessApp();
+assert.strictEqual(freshApp.settings.assistedMode, false, 'assistedMode must be false by default in settings');
+assert.strictEqual(freshApp.suggestedMove, null, 'suggestedMove must be null initially');
+assert.strictEqual(domElements['setting-assisted-mode'].checked, false, 'Checkbox #setting-assisted-mode must be unchecked by default');
+
+// 22b. Enabling Assisted Mode updates setting and syncs DOM
+freshApp.setAssistedMode(true);
+assert.strictEqual(freshApp.settings.assistedMode, true, 'assistedMode must be true after setAssistedMode(true)');
+assert.strictEqual(domElements['setting-assisted-mode'].checked, true, 'Checkbox #setting-assisted-mode must be checked');
+
+// 22c. Visual Board Indicators: suggested-move-from and suggested-move-to highlight squares
+freshApp.suggestedMove = {
+  from: { x: 4, y: 6 }, // e2
+  to: { x: 4, y: 4 },   // e4
+  uci: 'e2e4',
+  san: 'e4'
+};
+freshApp.render();
+
+const fromSquare = getSquareByCoords(freshApp, 4, 6);
+const toSquare = getSquareByCoords(freshApp, 4, 4);
+const otherSquare = getSquareByCoords(freshApp, 3, 6);
+
+assert.strictEqual(fromSquare.classList.contains('suggested-move-from'), true, 'Origin square has .suggested-move-from');
+assert.strictEqual(fromSquare.classList.contains('suggested-from'), true, 'Origin square has .suggested-from');
+assert.strictEqual(toSquare.classList.contains('suggested-move-to'), true, 'Destination square has .suggested-move-to');
+assert.strictEqual(toSquare.classList.contains('suggested-to'), true, 'Destination square has .suggested-to');
+assert.strictEqual(otherSquare.classList.contains('suggested-move-from'), false, 'Other square has no suggested highlight');
+
+// 22d. Executing a move clears the suggestedMove and removes highlights
+freshApp.executeMove({ x: 4, y: 6 }, { x: 4, y: 4 });
+assert.strictEqual(freshApp.suggestedMove, null, 'executeMove() clears suggestedMove to null');
+assert.strictEqual(fromSquare.classList.contains('suggested-move-from'), false, 'Origin square highlight is cleared after move');
+assert.strictEqual(toSquare.classList.contains('suggested-move-to'), false, 'Destination square highlight is cleared after move');
+
+// 22e. Disabling Assisted Mode clears suggestedMove and syncs DOM immediately
+freshApp.suggestedMove = {
+  from: { x: 6, y: 7 }, // g1
+  to: { x: 5, y: 5 },   // f3
+  uci: 'g1f3',
+  san: 'Nf3'
+};
+freshApp.render();
+const g1Square = getSquareByCoords(freshApp, 6, 7);
+assert.strictEqual(g1Square.classList.contains('suggested-move-from'), true);
+
+freshApp.setAssistedMode(false);
+assert.strictEqual(freshApp.settings.assistedMode, false, 'assistedMode is false');
+assert.strictEqual(freshApp.suggestedMove, null, 'suggestedMove is cleared when assisted mode is disabled');
+assert.strictEqual(domElements['setting-assisted-mode'].checked, false, 'Checkbox #setting-assisted-mode is unchecked');
+assert.strictEqual(g1Square.classList.contains('suggested-move-from'), false, 'Square highlight is removed when disabled');
+
+// 22f. On-demand Hint request (Stockfish AI / fallback evaluation)
+freshApp.restartGame();
+freshApp.requestAssistedHint(true); // forceHint = true
+assert.ok(freshApp.suggestedMove !== null, 'requestAssistedHint(true) generates a suggestedMove');
+assert.ok(freshApp.suggestedMove.from && freshApp.suggestedMove.to, 'suggestedMove contains from and to coordinates');
+assert.ok(typeof freshApp.suggestedMove.uci === 'string', 'suggestedMove contains valid UCI string');
+assert.ok(typeof freshApp.suggestedMove.san === 'string', 'suggestedMove contains valid SAN string');
+
+const suggestedFromSquare = getSquareByCoords(freshApp, freshApp.suggestedMove.from.x, freshApp.suggestedMove.from.y);
+const suggestedToSquare = getSquareByCoords(freshApp, freshApp.suggestedMove.to.x, freshApp.suggestedMove.to.y);
+assert.strictEqual(suggestedFromSquare.classList.contains('suggested-move-from'), true, 'Rendered suggested from square highlight');
+assert.strictEqual(suggestedToSquare.classList.contains('suggested-move-to'), true, 'Rendered suggested to square highlight');
+
+// 22g. Hint Action Buttons (Header, Dock, Sidebar) & Keyboard Shortcut 'h'
+freshApp.suggestedMove = null;
+freshApp.render();
+assert.strictEqual(freshApp.suggestedMove, null);
+
+// Click header hint button
+domElements['btn-header-hint'].dispatchEvent({ type: 'click' });
+assert.ok(freshApp.suggestedMove !== null, 'Header hint button triggers requestAssistedHint');
+
+freshApp.suggestedMove = null;
+freshApp.render();
+
+// Click dock hint button
+domElements['btn-dock-hint'].dispatchEvent({ type: 'click' });
+assert.ok(freshApp.suggestedMove !== null, 'Dock hint button triggers requestAssistedHint');
+
+freshApp.suggestedMove = null;
+freshApp.render();
+
+// Click sidebar hint button
+domElements['btn-sidebar-hint'].dispatchEvent({ type: 'click' });
+assert.ok(freshApp.suggestedMove !== null, 'Sidebar hint button triggers requestAssistedHint');
+
+freshApp.suggestedMove = null;
+freshApp.render();
+
+// Press 'h' key
+freshApp._handleKeyboardShortcuts({ key: 'h', target: { tagName: 'DIV' } });
+assert.ok(freshApp.suggestedMove !== null, 'Keyboard shortcut "h" triggers requestAssistedHint');
+
+// 22h. Form checkbox toggle event integration
+domElements['setting-assisted-mode'].checked = true;
+domElements['setting-assisted-mode'].dispatchEvent({ type: 'change', target: { checked: true } });
+assert.strictEqual(freshApp.settings.assistedMode, true, 'Checkbox change event enables assistedMode');
+
+domElements['setting-assisted-mode'].checked = false;
+domElements['setting-assisted-mode'].dispatchEvent({ type: 'change', target: { checked: false } });
+assert.strictEqual(freshApp.settings.assistedMode, false, 'Checkbox change event disables assistedMode');
+
+console.log('Passed Assisted Mode (Modo Asistido & Stockfish Suggestions) Tests.');
 
 console.log('Passed Exhaustive Regression Tests: Piece Lock, Single Player Flow & Side Chooser.');
 

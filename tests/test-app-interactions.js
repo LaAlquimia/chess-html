@@ -165,6 +165,7 @@ const domElements = {
   'btn-header-profile': createMockElement('button'),
   'setting-face-to-face': createMockElement('input'),
   'setting-assisted-mode': createMockElement('input'),
+  'setting-show-hint-button': createMockElement('input'),
   'setting-game-mode': createMockElement('select'),
   'btn-create-room': createMockElement('button'),
   'online-reaction-bar': createMockElement('div'),
@@ -1181,7 +1182,28 @@ domElements['setting-assisted-mode'].checked = false;
 domElements['setting-assisted-mode'].dispatchEvent({ type: 'change', target: { checked: false } });
 assert.strictEqual(freshApp.settings.assistedMode, false, 'Checkbox change event disables assistedMode');
 
-console.log('Passed Assisted Mode (Modo Asistido & Stockfish Suggestions) Tests.');
+// 22i. Show Hint Button Setting (Desactivado por defecto y conmutable)
+assert.strictEqual(freshApp.settings.showHintButton, false, 'showHintButton must be false by default');
+assert.strictEqual(domElements['setting-show-hint-button'].checked, false, 'Checkbox #setting-show-hint-button unchecked by default');
+assert.strictEqual(domElements['btn-header-hint'].style.display, 'none', 'Header hint button hidden by default');
+assert.strictEqual(domElements['btn-dock-hint'].style.display, 'none', 'Dock hint button hidden by default');
+assert.strictEqual(domElements['btn-sidebar-hint'].style.display, 'none', 'Sidebar hint button hidden by default');
+
+// Toggle showHintButton via method
+freshApp.setShowHintButton(true);
+assert.strictEqual(freshApp.settings.showHintButton, true, 'showHintButton is true after setShowHintButton(true)');
+assert.strictEqual(domElements['setting-show-hint-button'].checked, true, 'Checkbox checked after enabling');
+assert.strictEqual(domElements['btn-header-hint'].style.display, '', 'Header hint button visible when showHintButton is true');
+assert.strictEqual(domElements['btn-dock-hint'].style.display, '', 'Dock hint button visible when showHintButton is true');
+assert.strictEqual(domElements['btn-sidebar-hint'].style.display, '', 'Sidebar hint button visible when showHintButton is true');
+
+// Toggle showHintButton via DOM checkbox
+domElements['setting-show-hint-button'].checked = false;
+domElements['setting-show-hint-button'].dispatchEvent({ type: 'change', target: { checked: false } });
+assert.strictEqual(freshApp.settings.showHintButton, false, 'showHintButton is false after checkbox toggle');
+assert.strictEqual(domElements['btn-header-hint'].style.display, 'none', 'Header hint button hidden again');
+
+console.log('Passed Assisted Mode & Show Hint Button (Modo Asistido & Pistas IA) Tests.');
 
 // =========================================================================
 // 23. PLAYER PROFILE, ACTIVE ROOMS, AND RECONNECTION BANNER INTEGRATION

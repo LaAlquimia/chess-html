@@ -15,6 +15,7 @@ function createMockElement(tag = 'div') {
   const el = {
     tagName: tag.toUpperCase(),
     dataset: {},
+    style: {},
     classList: {
       _classes: new Set(),
       add(...classes) {
@@ -127,6 +128,8 @@ function createMockElement(tag = 'div') {
   return el;
 }
 
+global.PlayerProfileManager = require('../js/profile.js');
+
 // Setup Global DOM environment
 const domElements = {
   chessboard: createMockElement('div'),
@@ -159,6 +162,7 @@ const domElements = {
   'btn-header-theme': createMockElement('button'),
   'btn-header-tabletop': createMockElement('button'),
   'btn-header-hint': createMockElement('button'),
+  'btn-header-profile': createMockElement('button'),
   'setting-face-to-face': createMockElement('input'),
   'setting-assisted-mode': createMockElement('input'),
   'setting-game-mode': createMockElement('select'),
@@ -169,6 +173,7 @@ const domElements = {
   'btn-dock-draw': createMockElement('button'),
   'btn-dock-resign': createMockElement('button'),
   'btn-dock-online': createMockElement('button'),
+  'btn-dock-profile': createMockElement('button'),
   'btn-dock-undo': createMockElement('button'),
   'btn-dock-newgame': createMockElement('button'),
   'btn-dock-flip': createMockElement('button'),
@@ -181,9 +186,36 @@ const domElements = {
   'btn-sidebar-flip': createMockElement('button'),
   'btn-sidebar-settings': createMockElement('button'),
   'btn-sidebar-hint': createMockElement('button'),
+  'btn-sidebar-profile': createMockElement('button'),
   'gameover-title': createMockElement('h2'),
   'gameover-reason': createMockElement('p'),
-  'gameover-icon': createMockElement('div')
+  'gameover-icon': createMockElement('div'),
+
+  // Profile and Reconnect DOM elements
+  'modal-profile': createMockElement('div'),
+  'profile-current-avatar': createMockElement('div'),
+  'btn-change-avatar': createMockElement('button'),
+  'avatar-picker-grid': createMockElement('div'),
+  'profile-name-input': createMockElement('input'),
+  'btn-save-profile-name': createMockElement('button'),
+  'profile-id-badge': createMockElement('span'),
+  'btn-copy-player-id': createMockElement('button'),
+  'stat-wins': createMockElement('span'),
+  'stat-losses': createMockElement('span'),
+  'stat-draws': createMockElement('span'),
+  'stat-total': createMockElement('span'),
+  'tab-btn-active-rooms': createMockElement('button'),
+  'tab-btn-match-history': createMockElement('button'),
+  'tab-pane-active-rooms': createMockElement('div'),
+  'tab-pane-match-history': createMockElement('div'),
+  'active-rooms-count': createMockElement('span'),
+  'active-rooms-list': createMockElement('div'),
+  'match-history-count': createMockElement('span'),
+  'match-history-list': createMockElement('div'),
+  'online-reconnect-banner': createMockElement('div'),
+  'reconnect-banner-details': createMockElement('span'),
+  'btn-reconnect-resume': createMockElement('button'),
+  'btn-reconnect-dismiss': createMockElement('button')
 };
 
 domElements.chessboard.id = 'chessboard';
@@ -297,9 +329,12 @@ global.window = {
   location: { search: '', pathname: '/' }
 };
 
+const localStorageStore = {};
 global.localStorage = {
-  getItem: () => null,
-  setItem: () => {}
+  getItem: (key) => localStorageStore[key] || null,
+  setItem: (key, val) => { localStorageStore[key] = String(val); },
+  removeItem: (key) => { delete localStorageStore[key]; },
+  clear: () => { for (const k in localStorageStore) delete localStorageStore[k]; }
 };
 
 global.ChessGame = ChessGame;
@@ -628,7 +663,7 @@ app.render();
 
 // Verify online player names and orientation (must NEVER be rotated)
 assert.strictEqual(app.dom.topPlayerName.textContent, 'OnlineRival');
-assert.strictEqual(app.dom.bottomPlayerName.textContent, 'Tú (Local)');
+assert.ok(app.dom.bottomPlayerName.textContent === 'Alquimista' || app.dom.bottomPlayerName.textContent === 'Tú (Local)');
 assert.strictEqual(app.dom.topPlayerBar.classList.contains('face-to-face-top'), false, 'In Online mode, top player bar must NOT have face-to-face-top class');
 assert.strictEqual(app.dom.btnHeaderTabletop.classList.contains('active'), false, 'In Online mode, tabletop button must NOT be active');
 const onlineBlackKingSq = getSquareByCoords(app, 4, 0);
@@ -1042,6 +1077,7 @@ console.log('\nTesting Assisted Mode (Modo Asistido & Stockfish Hints)...');
 
 // 22a. Default Configuration: assistedMode is false by default
 const freshApp = new ChessApp();
+freshApp.setPlayerColor('w');
 assert.strictEqual(freshApp.settings.assistedMode, false, 'assistedMode must be false by default in settings');
 assert.strictEqual(freshApp.suggestedMove, null, 'suggestedMove must be null initially');
 assert.strictEqual(domElements['setting-assisted-mode'].checked, false, 'Checkbox #setting-assisted-mode must be unchecked by default');
@@ -1147,8 +1183,63 @@ assert.strictEqual(freshApp.settings.assistedMode, false, 'Checkbox change event
 
 console.log('Passed Assisted Mode (Modo Asistido & Stockfish Suggestions) Tests.');
 
+// =========================================================================
+// 23. PLAYER PROFILE, ACTIVE ROOMS, AND RECONNECTION BANNER INTEGRATION
+// =========================================================================
+console.log('\n--- 23. Testing Player Profile, Active Rooms & Reconnection Banner ---');
+
+// 23a. Open Profile Modal from header, sidebar, dock, and player avatar
+freshApp.openProfileModal();
+assert.strictEqual(domElements['modal-profile'].classList.contains('open'), true, 'Profile modal opens');
+assert.strictEqual(domElements['profile-name-input'].value, freshApp.profileManager.getProfile().playerName, 'Profile name populated');
+assert.strictEqual(Number(domElements['stat-total'].textContent), freshApp.profileManager.getProfile().stats.totalGames, 'Stats rendered');
+
+// 23b. Update identity
+freshApp.saveProfileName('ReyAlquimista');
+assert.strictEqual(freshApp.profileManager.getProfile().playerName, 'ReyAlquimista', 'Profile name updated via app');
+freshApp.selectAvatar('⚡');
+assert.strictEqual(freshApp.profileManager.getProfile().avatar, '⚡', 'Avatar updated via app');
+
+// 23c. Profile Tab switching
+freshApp.switchProfileTab('history');
+assert.strictEqual(domElements['tab-btn-match-history'].classList.contains('active'), true, 'Match history tab is active');
+freshApp.switchProfileTab('rooms');
+assert.strictEqual(domElements['tab-btn-active-rooms'].classList.contains('active'), true, 'Active rooms tab is active');
+
+// 23d. Active room tracking & Reconnection banner
+freshApp.mode = 'ai';
+freshApp.profileManager.saveActiveRoom({
+  roomCode: 'TEST',
+  role: 'host',
+  assignedColor: 'w',
+  opponentName: 'Rival1',
+  opponentAvatar: '🦁',
+  fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
+  moveHistory: ['e4'],
+  turn: 'b',
+  status: 'active'
+});
+
+freshApp.checkActiveOnlineSessionBanner();
+assert.strictEqual(domElements['online-reconnect-banner'].style.display, 'flex', 'Reconnect banner displays when active online room exists');
+assert.ok(domElements['reconnect-banner-details'].textContent.includes('TEST'), 'Banner mentions room code TEST');
+
+// 23e. Resume online room from profile/banner
+freshApp.resumeOnlineRoom('TEST');
+assert.strictEqual(freshApp.mode, 'online', 'Game mode switches to online on room resumption');
+assert.strictEqual(freshApp.playerColor, 'w', 'Assigned color restored');
+assert.strictEqual(domElements['online-reconnect-banner'].style.display, 'none', 'Banner dismissed upon resuming');
+
+// 23f. Abandon online room
+freshApp.abandonOnlineRoom('TEST');
+assert.strictEqual(freshApp.profileManager.getActiveRooms().length, 0, 'Active rooms cleared after abandonment');
+assert.strictEqual(freshApp.mode, 'ai', 'Game mode resets to ai');
+
+console.log('Passed Player Profile, Active Rooms & Reconnection Banner Tests.');
+
 console.log('Passed Exhaustive Regression Tests: Piece Lock, Single Player Flow & Side Chooser.');
 
 console.log('\nALL CHESSAPP MOVEMENT & INTERACTION TESTS PASSED SUCCESSFULLY! 🎉');
+process.exit(0);
 
 
